@@ -5,7 +5,8 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.border
-import androidx.compose.foundation.gestures.detectDragGestures
+import androidx.compose.foundation.gestures.awaitEachGesture
+import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -56,11 +57,13 @@ private class InkStrokePoints {
     val ts = ArrayList<Long>()
 }
 
+@OptIn(androidx.compose.ui.ExperimentalComposeUiApi::class)
 @Composable
 private fun SmokeTestScreen() {
     var modelStatus by remember { mutableStateOf("checking model…") }
     var modelReady by remember { mutableStateOf(false) }
     var result by remember { mutableStateOf("") }
+    var strokeStats by remember { mutableStateOf("") }
     val strokes = remember { mutableStateListOf<InkStrokePoints>() }
     var redraws by remember { mutableStateOf(0) }
 
@@ -93,6 +96,7 @@ private fun SmokeTestScreen() {
         verticalArrangement = Arrangement.spacedBy(12.dp)
     ) {
         Text(modelStatus)
+        Text(strokeStats)
 
         Canvas(
             modifier = Modifier
@@ -100,23 +104,45 @@ private fun SmokeTestScreen() {
                 .height(240.dp)
                 .border(2.dp, Color.Black)
                 .pointerInput(Unit) {
-                    detectDragGestures(
-                        onDragStart = { offset ->
-                            strokes.add(InkStrokePoints().apply {
-                                xs.add(offset.x); ys.add(offset.y)
-                                ts.add(System.currentTimeMillis())
-                            })
-                            redraws++
-                        },
-                        onDrag = { change, _ ->
-                            strokes.lastOrNull()?.apply {
-                                xs.add(change.position.x); ys.add(change.position.y)
-                                ts.add(System.currentTimeMillis())
+                    awaitEachGesture {
+                        // No drag detector: it waits for touch slop, which delays
+                        // stroke start and coalesces the first points. Capture raw
+                        // from first down, including historical (inter-frame) samples.
+                        val down = awaitFirstDown()
+                        down.consume()
+                        val stroke = InkStrokePoints().apply {
+                            xs.add(down.position.x); ys.add(down.position.y)
+                            ts.add(down.uptimeMillis)
+                        }
+                        strokes.add(stroke)
+                        redraws++
+                        while (true) {
+                            val event = awaitPointerEvent()
+                            val change = event.changes.firstOrNull { it.id == down.id } ?: break
+                            for (h in change.historical) {
+                                stroke.xs.add(h.position.x); stroke.ys.add(h.position.y)
+                                stroke.ts.add(h.uptimeMillis)
+                            }
+                            if (change.pressed) {
+                                stroke.xs.add(change.position.x); stroke.ys.add(change.position.y)
+                                stroke.ts.add(change.uptimeMillis)
                             }
                             change.consume()
                             redraws++
+                            if (!change.pressed) break
                         }
-                    )
+                        if (stroke.ts.size >= 2) {
+                            val durMs = stroke.ts.last() - stroke.ts.first()
+                            val hz = if (durMs > 0) stroke.ts.size * 1000f / durMs else 0f
+                            var maxGap = 0L
+                            for (i in 1 until stroke.ts.size) {
+                                maxGap = maxOf(maxGap, stroke.ts[i] - stroke.ts[i - 1])
+                            }
+                            strokeStats =
+                                "last stroke: ${stroke.ts.size} pts / ${durMs}ms = " +
+                                    "%.0f Hz, max gap ${maxGap}ms".format(hz)
+                        }
+                    }
                 }
         ) {
             redraws // read so new points trigger a redraw
