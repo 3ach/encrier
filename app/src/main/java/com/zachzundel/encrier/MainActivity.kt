@@ -160,6 +160,16 @@ private fun SmokeTestScreen() {
             Button(
                 enabled = modelReady && strokes.isNotEmpty(),
                 onClick = {
+                    for ((i, s) in strokes.withIndex()) {
+                        val dur = if (s.ts.size >= 2) s.ts.last() - s.ts.first() else 0
+                        val gap = if (i > 0) s.ts.first() - strokes[i - 1].ts.last() else 0
+                        // Log.i, not .d: DC-1 sets persist.log.tag=I, dropping debug logs
+                        android.util.Log.i(
+                            "InkSmoke",
+                            "stroke[$i]: ${s.ts.size} pts, dur=${dur}ms, " +
+                                "gapFromPrev=${gap}ms, t0=${s.ts.first()}"
+                        )
+                    }
                     val inkBuilder = Ink.builder()
                     for (s in strokes) {
                         val sb = Ink.Stroke.builder()
