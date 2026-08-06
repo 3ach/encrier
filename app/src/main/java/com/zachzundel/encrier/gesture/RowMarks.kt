@@ -13,6 +13,14 @@ import kotlin.math.min
 object RowMarks {
     enum class Kind { NONE, STRIKE, SCRIBBLE }
 
+    data class Verdict(
+        val kind: Kind,
+        val cover: Float,
+        val heightFrac: Float,
+        val reversals: Int,
+        val reason: String,
+    )
+
     fun classify(
         points: List<InkPoint>,
         rowTop: Float,
@@ -20,8 +28,8 @@ object RowMarks {
         writeLh: Float,
         textX0: Float,
         textX1: Float,
-    ): Kind {
-        if (points.size < 2) return Kind.NONE
+    ): Verdict {
+        if (points.size < 2) return Verdict(Kind.NONE, 0f, 0f, 0, "too few points")
         var minX = Float.MAX_VALUE
         var maxX = -Float.MAX_VALUE
         var minY = Float.MAX_VALUE
@@ -32,26 +40,26 @@ object RowMarks {
             if (p.y < minY) minY = p.y
             if (p.y > maxY) maxY = p.y
         }
-        // Must stay near the row band; wobble tolerance scales with the
-        // WRITING line height, not the (possibly tight) row height.
-        if (minY < rowTop - 0.25f * writeLh) return Kind.NONE
-        if (maxY > rowTop + rowHeight + 0.25f * writeLh) return Kind.NONE
-
         val textW = max(1f, textX1 - textX0)
         val cover = max(0f, min(maxX, textX1) - max(minX, textX0)) / textW
         val heightFrac = (maxY - minY) / writeLh
         val reversals = horizontalReversals(points)
 
-        if (cover >= Tunables.SCRIBBLE_MIN_COVER &&
-            reversals >= Tunables.SCRIBBLE_MIN_REVERSALS
-        ) return Kind.SCRIBBLE
-
-        if (cover >= Tunables.STRIKE_MIN_COVER &&
-            heightFrac <= Tunables.STRIKE_MAX_HEIGHT_FRAC &&
-            reversals <= 1
-        ) return Kind.STRIKE
-
-        return Kind.NONE
+        // Must stay near the row band; wobble tolerance scales with the
+        // WRITING line height, not the (possibly tight) row height.
+        val inBand = minY >= rowTop - 0.35f * writeLh &&
+            maxY <= rowTop + rowHeight + 0.35f * writeLh
+        val kind = when {
+            !inBand -> Kind.NONE
+            cover >= Tunables.SCRIBBLE_MIN_COVER &&
+                reversals >= Tunables.SCRIBBLE_MIN_REVERSALS -> Kind.SCRIBBLE
+            cover >= Tunables.STRIKE_MIN_COVER &&
+                heightFrac <= Tunables.STRIKE_MAX_HEIGHT_FRAC &&
+                reversals <= 1 -> Kind.STRIKE
+            else -> Kind.NONE
+        }
+        val reason = if (!inBand) "outside row band" else "thresholds"
+        return Verdict(kind, cover, heightFrac, reversals, reason)
     }
 
     private fun horizontalReversals(points: List<InkPoint>): Int {

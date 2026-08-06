@@ -162,40 +162,53 @@ class TapeViewModel : ViewModel() {
                         .format(m.dropPastRulePx, m.turnDeg, m.runPx)
                 )
             }
-            // Strike-out → DONE; scribble-out → DELETE. Neither stores ink.
-            val item = startRow!!.item!!
-            textBounds[startRow.line.id]?.let { b ->
-                val verdict = RowMarks.classify(
-                    points,
-                    rowTop = layout.topOf(startSlot),
-                    rowHeight = layout.heightOf(startSlot),
-                    writeLh = lh,
-                    textX0 = b[0],
-                    textX1 = b[1],
+        }
+
+        // Strike-out → DONE; scribble-out → DELETE. Neither stores ink. Tight
+        // rows make the start point unreliable (a scribble often starts above
+        // the band), so test the start row AND the centroid row.
+        val centroidY = (points.sumOf { it.y.toDouble() } / points.size).toFloat()
+        for (s in setOf(startSlot, layout.slotAt(centroidY))) {
+            val row = rowsNow.getOrNull(s) ?: continue
+            val item = row.item ?: continue
+            if (row.line.id in _uncommitted.value) continue
+            val b = textBounds[row.line.id] ?: continue
+            val v = RowMarks.classify(
+                points,
+                rowTop = layout.topOf(s),
+                rowHeight = layout.heightOf(s),
+                writeLh = lh,
+                textX0 = b[0],
+                textX1 = b[1],
+            )
+            if (Tunables.GESTURE_DEBUG && v.kind == RowMarks.Kind.NONE) {
+                Log.i(
+                    "MarksDebug",
+                    "slot=$s none (${v.reason}): cover=%.2f hf=%.2f rev=%d"
+                        .format(v.cover, v.heightFrac, v.reversals)
                 )
-                when (verdict) {
-                    RowMarks.Kind.SCRIBBLE -> {
-                        deleteLocked(startRow.line.id)
+            }
+            when (v.kind) {
+                RowMarks.Kind.SCRIBBLE -> {
+                    deleteLocked(row.line.id)
+                    return
+                }
+                RowMarks.Kind.STRIKE -> {
+                    if (item.status == ItemEntity.OPEN) {
+                        dao.updateItem(
+                            item.copy(
+                                status = ItemEntity.DONE,
+                                completedAt = System.currentTimeMillis(),
+                            )
+                        )
                         return
                     }
-                    RowMarks.Kind.STRIKE -> {
-                        if (item.status == ItemEntity.OPEN) {
-                            dao.updateItem(
-                                item.copy(
-                                    status = ItemEntity.DONE,
-                                    completedAt = System.currentTimeMillis(),
-                                )
-                            )
-                            return
-                        }
-                    }
-                    RowMarks.Kind.NONE -> {}
                 }
+                RowMarks.Kind.NONE -> {}
             }
         }
 
         // Handwriting routing by y-centroid (spec §3).
-        val centroidY = (points.sumOf { it.y.toDouble() } / points.size).toFloat()
         val slot = layout.slotAt(centroidY)
         val targetId: Long
         if (slot < rowsNow.size) {
