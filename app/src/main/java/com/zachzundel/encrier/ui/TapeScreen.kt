@@ -227,16 +227,9 @@ fun TapeScreen(vm: TapeViewModel) {
                                     eraseRadiusPx,
                                 )
                             }
-                            eraseSample(down.position)
-                            eraserPos = down.position
-                            while (true) {
-                                val ev = awaitPointerEvent()
-                                val ch = ev.changes.firstOrNull { it.id == down.id } ?: break
-                                for (h in ch.historical) eraseSample(h.position)
-                                if (ch.pressed) eraseSample(ch.position)
-                                eraserPos = ch.position
-                                ch.consume()
-                                if (!ch.pressed) break
+                            trackStroke(down) { pos, _ ->
+                                eraseSample(pos)
+                                eraserPos = pos
                             }
                             eraserPos = null
                         } else if (down.type == PointerType.Stylus) {
@@ -252,18 +245,8 @@ fun TapeScreen(vm: TapeViewModel) {
                             }
                             // Stylus draws (spec §3). Raw capture incl. historical points.
                             active.clear()
-                            active.add(InkPoint(down.position.x, down.position.y + scroll, down.uptimeMillis))
-                            while (true) {
-                                val event2 = awaitPointerEvent()
-                                val ch = event2.changes.firstOrNull { it.id == down.id } ?: break
-                                for (h in ch.historical) {
-                                    active.add(InkPoint(h.position.x, h.position.y + scroll, h.uptimeMillis))
-                                }
-                                if (ch.pressed) {
-                                    active.add(InkPoint(ch.position.x, ch.position.y + scroll, ch.uptimeMillis))
-                                }
-                                ch.consume()
-                                if (!ch.pressed) break
+                            trackStroke(down) { pos, t ->
+                                active.add(InkPoint(pos.x, pos.y + scroll, t))
                             }
                             if (active.isNotEmpty()) {
                                 vm.onStrokeFinished(active.toList(), strokeRevealed, layoutState.value)

@@ -9,6 +9,27 @@ import java.util.Locale
 
 data class InkPoint(val x: Float, val y: Float, val t: Long)
 
+/** Axis-aligned bounding box of one or more strokes. */
+data class InkBounds(val minX: Float, val minY: Float, val maxX: Float, val maxY: Float)
+
+fun List<InkPoint>.bounds(): InkBounds? {
+    if (isEmpty()) return null
+    var minX = Float.MAX_VALUE
+    var minY = Float.MAX_VALUE
+    var maxX = -Float.MAX_VALUE
+    var maxY = -Float.MAX_VALUE
+    for (p in this) {
+        if (p.x < minX) minX = p.x
+        if (p.x > maxX) maxX = p.x
+        if (p.y < minY) minY = p.y
+        if (p.y > maxY) maxY = p.y
+    }
+    return InkBounds(minX, minY, maxX, maxY)
+}
+
+@JvmName("strokesBounds")
+fun List<List<InkPoint>>.bounds(): InkBounds? = flatten().bounds()
+
 fun encodePoints(points: List<InkPoint>): String {
     val arr = JSONArray()
     for (p in points) {

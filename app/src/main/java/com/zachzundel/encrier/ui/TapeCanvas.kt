@@ -1,9 +1,7 @@
 package com.zachzundel.encrier.ui
 
 import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.drawscope.DrawScope
-import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.text.TextMeasurer
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.drawText
@@ -69,31 +67,13 @@ internal fun DrawScope.drawItemRow(
     )
 }
 
-internal fun DrawScope.drawInkStroke(points: List<InkPoint>, top: Float) {
-    if (points.isEmpty()) return
-    if (points.size == 1) {
-        drawCircle(InkBlack, radius = 2f, center = Offset(points[0].x, points[0].y + top))
-        return
-    }
-    val path = Path()
-    for ((j, p) in points.withIndex()) {
-        if (j == 0) path.moveTo(p.x, p.y + top) else path.lineTo(p.x, p.y + top)
-    }
-    drawPath(path, InkBlack, style = Stroke(width = 3f))
-}
+/** Line-relative stroke drawn at a row's on-screen [top]. */
+internal fun DrawScope.drawInkStroke(points: List<InkPoint>, top: Float) =
+    drawStroke(points, { Offset(it.x, it.y + top) })
 
-internal fun DrawScope.drawContentStroke(points: List<InkPoint>, scroll: Float) {
-    if (points.isEmpty()) return
-    if (points.size == 1) {
-        drawCircle(InkBlack, radius = 2f, center = Offset(points[0].x, points[0].y - scroll))
-        return
-    }
-    val path = Path()
-    for ((j, p) in points.withIndex()) {
-        if (j == 0) path.moveTo(p.x, p.y - scroll) else path.lineTo(p.x, p.y - scroll)
-    }
-    drawPath(path, InkBlack, style = Stroke(width = 3f))
-}
+/** Content-space stroke drawn under the current [scroll]. */
+internal fun DrawScope.drawContentStroke(points: List<InkPoint>, scroll: Float) =
+    drawStroke(points, { Offset(it.x, it.y - scroll) })
 
 /** Crisp connector glyph (└─) marking a spawned child line (spec §5). */
 internal fun DrawScope.drawConnector(top: Float, rowH: Float) {

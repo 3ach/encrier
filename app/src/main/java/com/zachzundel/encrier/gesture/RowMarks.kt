@@ -2,6 +2,7 @@ package com.zachzundel.encrier.gesture
 
 import com.zachzundel.encrier.Tunables
 import com.zachzundel.encrier.data.InkPoint
+import com.zachzundel.encrier.data.bounds
 import kotlin.math.abs
 import kotlin.math.max
 import kotlin.math.min
@@ -31,19 +32,10 @@ object RowMarks {
         textX1: Float,
     ): Verdict {
         if (points.size < 2) return Verdict(Kind.NONE, 0f, 0f, 0, 0, "too few points")
-        var minX = Float.MAX_VALUE
-        var maxX = -Float.MAX_VALUE
-        var minY = Float.MAX_VALUE
-        var maxY = -Float.MAX_VALUE
-        for (p in points) {
-            if (p.x < minX) minX = p.x
-            if (p.x > maxX) maxX = p.x
-            if (p.y < minY) minY = p.y
-            if (p.y > maxY) maxY = p.y
-        }
+        val b = points.bounds()!! // non-null: at least two points
         val textW = max(1f, textX1 - textX0)
-        val cover = max(0f, min(maxX, textX1) - max(minX, textX0)) / textW
-        val heightFrac = (maxY - minY) / writeLh
+        val cover = max(0f, min(b.maxX, textX1) - max(b.minX, textX0)) / textW
+        val heightFrac = (b.maxY - b.minY) / writeLh
         // A scribble can zigzag horizontally OR be a sawtooth: rapid vertical
         // reversals while sweeping rightward. Count both axes. Hysteresis-based
         // so ~550Hz sampling (sub-pixel per-sample deltas) can't hide reversals.
@@ -53,8 +45,8 @@ object RowMarks {
 
         // Must stay near the row band; wobble tolerance scales with the
         // WRITING line height, not the (possibly tight) row height.
-        val inBand = minY >= rowTop - 0.35f * writeLh &&
-            maxY <= rowTop + rowHeight + 0.35f * writeLh
+        val inBand = b.minY >= rowTop - 0.35f * writeLh &&
+            b.maxY <= rowTop + rowHeight + 0.35f * writeLh
         val kind = when {
             !inBand -> Kind.NONE
             cover >= Tunables.SCRIBBLE_MIN_COVER &&
