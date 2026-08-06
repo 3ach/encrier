@@ -227,6 +227,11 @@ Design changes from v1, in the order they were decided:
 - **Elbow thresholds** recalibrated from real handwriting: drop ≥ 0.35 ×
   lineHeight, run ≥ 36dp and ≥ 0.75 × drop. Reliability still imperfect;
   open item.
+- **Multiple tapes.** Lines belong to a tape; the current tape is persisted
+  across launches and shown as the top-bar title (the id-1 default tape
+  displays as "encrier"). Tapping the title on the tape view opens a picker
+  card: switch tapes, or type a name to create one — the app's only keyboard
+  input. History reports the current tape only.
 
 Device notes: DC-1 ships `persist.log.tag=I` (Log.d is dropped device-wide);
 its digitizer reports ~550Hz. Do not vary only draw-time attributes

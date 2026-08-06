@@ -33,7 +33,9 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.foundation.text.BasicTextField
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.zachzundel.encrier.data.TapeEntity
 import com.zachzundel.encrier.ink.Recognition
 import com.zachzundel.encrier.ui.EncrierTheme
 import com.zachzundel.encrier.ui.HardButton
@@ -91,25 +93,134 @@ private fun BlockingScreen(message: String, action: (@Composable () -> Unit)? = 
 @Composable
 private fun Tabs() {
     var showHistory by rememberSaveable { mutableStateOf(false) }
+    var showTapePicker by rememberSaveable { mutableStateOf(false) }
+    val tapeVm = viewModel<TapeViewModel>()
+    val tapes by tapeVm.tapes.collectAsState()
+    val currentTapeId by tapeVm.currentTapeId.collectAsState()
+    val tapeName = tapeDisplayName(tapes.firstOrNull { it.id == currentTapeId })
     Column(Modifier.fillMaxSize()) {
         Row(
             Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Text(
-                if (showHistory) "history" else "encrier",
+                if (showHistory) "history" else tapeName,
                 fontFamily = com.zachzundel.encrier.ui.Serif,
                 fontStyle = androidx.compose.ui.text.font.FontStyle.Italic,
                 fontSize = 21.sp,
                 color = InkBlack,
+                modifier = if (showHistory) Modifier
+                else Modifier.hardClickable { showTapePicker = !showTapePicker },
             )
             Spacer(Modifier.weight(1f))
-            ClockButton(selected = showHistory, onClick = { showHistory = !showHistory })
+            ClockButton(
+                selected = showHistory,
+                onClick = {
+                    showHistory = !showHistory
+                    showTapePicker = false
+                },
+            )
         }
         Box(Modifier.fillMaxWidth().height(1.dp).background(com.zachzundel.encrier.ui.InkMargin))
         Box(Modifier.weight(1f)) {
             if (showHistory) HistoryScreen(viewModel<HistoryViewModel>())
-            else TapeScreen(viewModel<TapeViewModel>())
+            else TapeScreen(tapeVm)
+            if (showTapePicker && !showHistory) {
+                TapePickerCard(
+                    tapes = tapes,
+                    currentTapeId = currentTapeId,
+                    onSwitch = { tapeVm.switchTape(it); showTapePicker = false },
+                    onCreate = { tapeVm.createTape(it); showTapePicker = false },
+                    modifier = Modifier.align(Alignment.TopCenter).fillMaxWidth().padding(12.dp),
+                )
+            }
+        }
+    }
+}
+
+private fun tapeDisplayName(tape: TapeEntity?): String =
+    when {
+        tape == null -> "encrier"
+        tape.id == TapeEntity.DEFAULT_ID -> "encrier"
+        else -> tape.name
+    }
+
+/** Notebook card listing tapes; the bottom row creates a new one (keyboard input). */
+@Composable
+private fun TapePickerCard(
+    tapes: List<TapeEntity>,
+    currentTapeId: Long,
+    onSwitch: (Long) -> Unit,
+    onCreate: (String) -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    val cardShape = androidx.compose.foundation.shape.RoundedCornerShape(10.dp)
+    val fieldShape = androidx.compose.foundation.shape.RoundedCornerShape(8.dp)
+    var newName by rememberSaveable { mutableStateOf("") }
+    Column(
+        modifier
+            .background(InkWhite, cardShape)
+            .border(1.5.dp, InkBlack, cardShape)
+            .padding(14.dp),
+        verticalArrangement = Arrangement.spacedBy(6.dp),
+    ) {
+        for (tape in tapes) {
+            val selected = tape.id == currentTapeId
+            Text(
+                tapeDisplayName(tape),
+                fontFamily = com.zachzundel.encrier.ui.Serif,
+                fontSize = 15.sp,
+                color = if (selected) InkWhite else InkBlack,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .background(if (selected) InkBlack else InkWhite, fieldShape)
+                    .hardClickable { onSwitch(tape.id) }
+                    .padding(horizontal = 10.dp, vertical = 8.dp),
+            )
+        }
+        Row(
+            Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            BasicTextField(
+                value = newName,
+                onValueChange = { newName = it },
+                singleLine = true,
+                textStyle = androidx.compose.ui.text.TextStyle(
+                    fontFamily = com.zachzundel.encrier.ui.Serif,
+                    fontSize = 15.sp,
+                    color = InkBlack,
+                ),
+                cursorBrush = androidx.compose.ui.graphics.SolidColor(InkBlack),
+                modifier = Modifier
+                    .weight(1f)
+                    .border(1.dp, com.zachzundel.encrier.ui.InkMargin, fieldShape)
+                    .background(InkWhite, fieldShape)
+                    .padding(horizontal = 10.dp, vertical = 9.dp),
+                decorationBox = { inner ->
+                    Box {
+                        if (newName.isEmpty()) {
+                            Text(
+                                "new tape",
+                                fontFamily = com.zachzundel.encrier.ui.Serif,
+                                fontSize = 15.sp,
+                                color = com.zachzundel.encrier.ui.InkGray,
+                            )
+                        }
+                        inner()
+                    }
+                },
+            )
+            HardButton(
+                "create",
+                onClick = {
+                    if (newName.isNotBlank()) {
+                        onCreate(newName)
+                        newName = ""
+                    }
+                },
+            )
         }
     }
 }

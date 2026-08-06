@@ -10,11 +10,13 @@ import com.zachzundel.encrier.data.ItemEntity
 import com.zachzundel.encrier.data.LineEntity
 import com.zachzundel.encrier.data.LineRow
 import com.zachzundel.encrier.data.StrokeEntity
+import com.zachzundel.encrier.data.TapeEntity
 import com.zachzundel.encrier.data.encodeCandidates
 import com.zachzundel.encrier.data.encodePoints
 import com.zachzundel.encrier.data.decodePoints
 import com.zachzundel.encrier.gesture.Elbow
 import com.zachzundel.encrier.gesture.RowMarks
+import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -22,6 +24,7 @@ import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
@@ -31,6 +34,7 @@ import kotlin.math.floor
 class TapeViewModel : ViewModel() {
     private val dao = Graph.db.dao()
     private val recog = Graph.recognition
+    private val session = Graph.session
 
     data class RenderStroke(val points: List<InkPoint>, val id: Long = 0L) // line-relative
     data class TapeRow(val line: LineRow, val item: ItemEntity?, val isPendingChild: Boolean)
@@ -72,11 +76,39 @@ class TapeViewModel : ViewModel() {
     data class Panel(val item: ItemEntity, val strokes: List<List<InkPoint>>)
     private val _panelLineId = MutableStateFlow<Long?>(null)
 
+    val currentTapeId: StateFlow<Long> = session.currentTapeId
+
+    val tapes: StateFlow<List<TapeEntity>> =
+        dao.observeTapes().stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
+
+    @OptIn(ExperimentalCoroutinesApi::class)
     val rows: StateFlow<List<TapeRow>> =
-        combine(dao.observeLines(com.zachzundel.encrier.data.TapeEntity.DEFAULT_ID), dao.observeItems(), pendingParent) { lines, items, pending ->
+        combine(
+            session.currentTapeId.flatMapLatest { dao.observeLines(it) },
+            dao.observeItems(),
+            pendingParent,
+        ) { lines, items, pending ->
             val byLine = items.associateBy { it.lineId }
             lines.map { TapeRow(it, byLine[it.id], pending.containsKey(it.id)) }
         }.stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
+
+    fun switchTape(id: Long) {
+        _panelLineId.value = null
+        session.switchTo(id)
+        Log.i("Encrier", "switched to tape $id")
+    }
+
+    /** Inserts a tape and makes it current. Blank names are ignored. */
+    fun createTape(name: String) {
+        val trimmed = name.trim()
+        if (trimmed.isEmpty()) return
+        viewModelScope.launch {
+            val id = dao.insertTape(
+                TapeEntity(name = trimmed, createdAt = System.currentTimeMillis())
+            )
+            switchTape(id)
+        }
+    }
 
     /**
      * Derived from the DB flows, never a snapshot: buttons always reflect current
@@ -225,11 +257,12 @@ class TapeViewModel : ViewModel() {
         } else {
             // Create lines for every empty slot up to the written one so ink
             // stays exactly where it was written.
-            var seq = dao.maxSeq(com.zachzundel.encrier.data.TapeEntity.DEFAULT_ID) ?: 0.0
+            val tapeId = session.currentTapeId.value
+            var seq = dao.maxSeq(tapeId) ?: 0.0
             var lastId = -1L
             for (s in rowsNow.size..slot) {
                 seq += 1.0
-                lastId = dao.insertLine(LineEntity(seq = seq, createdAt = now))
+                lastId = dao.insertLine(LineEntity(seq = seq, createdAt = now, tapeId = tapeId))
             }
             targetId = lastId
         }
@@ -407,7 +440,9 @@ class TapeViewModel : ViewModel() {
         val next = rowsNow.getOrNull(anchorIdx + 1)
         val seq =
             if (next != null) (anchor.line.seq + next.line.seq) / 2.0 else anchor.line.seq + 1.0
-        val id = dao.insertLine(LineEntity(seq = seq, createdAt = now))
+        val id = dao.insertLine(
+            LineEntity(seq = seq, createdAt = now, tapeId = session.currentTapeId.value)
+        )
         pendingParent.update { it + (id to anchor.item!!.id) }
         _strokeCache.update { it + (id to emptyList()) }
     }

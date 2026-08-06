@@ -26,12 +26,16 @@ import androidx.lifecycle.viewModelScope
 import com.zachzundel.encrier.Graph
 import com.zachzundel.encrier.data.ItemEntity
 import com.zachzundel.encrier.data.shortDate
+import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.stateIn
 
 class HistoryViewModel : ViewModel() {
-    val items: StateFlow<List<ItemEntity>> = Graph.db.dao().observeItems()
+    @OptIn(ExperimentalCoroutinesApi::class)
+    val items: StateFlow<List<ItemEntity>> = Graph.session.currentTapeId
+        .flatMapLatest { Graph.db.dao().observeItemsForTape(it) }
         .stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
 }
 

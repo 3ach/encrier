@@ -5,12 +5,15 @@ import android.content.Context
 import androidx.room.Room
 import com.zachzundel.encrier.data.InkDb
 import com.zachzundel.encrier.ink.Recognition
+import com.zachzundel.encrier.ui.TapeSession
 import java.io.File
 
 object Graph {
     lateinit var db: InkDb
         private set
     lateinit var recognition: Recognition
+        private set
+    lateinit var session: TapeSession
         private set
 
     fun init(context: Context) {
@@ -19,6 +22,7 @@ object Graph {
             .addMigrations(MIGRATION_1_2)
             .build()
         recognition = Recognition()
+        session = TapeSession(context)
     }
 
     private val MIGRATION_1_2 = object : androidx.room.migration.Migration(1, 2) {

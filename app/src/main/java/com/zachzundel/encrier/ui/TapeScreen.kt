@@ -65,6 +65,7 @@ private const val TOUCH_TAP_SLOP_PX = 12f
 @Composable
 fun TapeScreen(vm: TapeViewModel) {
     val rows by vm.rows.collectAsState()
+    val currentTapeId by vm.currentTapeId.collectAsState()
     val cache by vm.strokeCache.collectAsState()
     val uncommitted by vm.uncommitted.collectAsState()
     val overlay by vm.overlayStrokes.collectAsState()
@@ -148,14 +149,19 @@ fun TapeScreen(vm: TapeViewModel) {
         vm.amendGapPx = with(density) { Tunables.AMEND_GAP_DP.dp.toPx() }
     }
 
-    // Open scrolled to the last occupied line (spec §3).
-    var initialScrollDone by remember { mutableStateOf(false) }
-    LaunchedEffect(rows.size, viewportH) {
+    // Open scrolled to the last occupied line (spec §3). Keyed on the tape so
+    // a tape switch re-runs it; per-tape pen state must not carry over either.
+    var initialScrollDone by remember(currentTapeId) { mutableStateOf(false) }
+    LaunchedEffect(currentTapeId) { hoverSlot = null }
+    LaunchedEffect(currentTapeId, rows.size, viewportH) {
         if (!initialScrollDone && viewportH > 0f) {
             if (rows.isNotEmpty()) scrollToLatest()
             initialScrollDone = true
         }
     }
+    // Rows can shrink out from under the scroll position (tape switch lands
+    // its rows a beat after the switch; deletes close gaps): clamp.
+    LaunchedEffect(rows) { scroll = scroll.coerceIn(0f, maxScroll()) }
 
     // Lazy-load strokes for the visible line range (spec §2).
     LaunchedEffect(scroll, rows, viewportH) {
