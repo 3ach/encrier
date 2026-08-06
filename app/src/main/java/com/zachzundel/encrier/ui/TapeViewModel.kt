@@ -117,19 +117,27 @@ class TapeViewModel : ViewModel() {
         if (points.isEmpty()) return
         _overlayStrokes.update { it + listOf(points) }
         viewModelScope.launch {
+            var storedAsInk = false
             try {
-                mutex.withLock { handleStroke(points, inkRevealed, layout) }
+                mutex.withLock { storedAsInk = handleStroke(points, inkRevealed, layout) }
             } finally {
-                // Keep the overlay briefly so Room's emission lands before removal.
-                launch {
-                    delay(400)
+                if (storedAsInk) {
+                    // Keep the overlay briefly so Room's emission lands first.
+                    launch {
+                        delay(400)
+                        _overlayStrokes.update { cur -> cur.filter { it !== points } }
+                    }
+                } else {
+                    // Consumed by a gesture (tap/elbow/strike/scribble): no ink
+                    // will replace it, clear immediately.
                     _overlayStrokes.update { cur -> cur.filter { it !== points } }
                 }
             }
         }
     }
 
-    private suspend fun handleStroke(points: List<InkPoint>, inkRevealed: Boolean, layout: RowLayout) {
+    /** @return true if the stroke was stored as ink (vs consumed by a gesture). */
+    private suspend fun handleStroke(points: List<InkPoint>, inkRevealed: Boolean, layout: RowLayout): Boolean {
         val now = System.currentTimeMillis()
         val lh = lineHeightPx
         val rowsNow = rows.value
@@ -143,7 +151,7 @@ class TapeViewModel : ViewModel() {
         // A tap-length stylus stroke on a committed row opens its panel, not ink.
         if (anchored && pathLength(points) < tapMaxLenPx) {
             openPanelForLine(startRow!!.line.id)
-            return
+            return false
         }
 
         // Gesture detection runs BEFORE handwriting routing (spec §5).
@@ -153,7 +161,7 @@ class TapeViewModel : ViewModel() {
             if (m.matched) {
                 spawnChild(rowsNow, startSlot, now)
                 scheduleIdleCommit()
-                return
+                return false
             }
             if (Tunables.GESTURE_DEBUG) {
                 Log.i(
@@ -192,7 +200,7 @@ class TapeViewModel : ViewModel() {
             when (v.kind) {
                 RowMarks.Kind.SCRIBBLE -> {
                     deleteLocked(row.line.id)
-                    return
+                    return false
                 }
                 RowMarks.Kind.STRIKE -> {
                     if (item.status == ItemEntity.OPEN) {
@@ -202,7 +210,7 @@ class TapeViewModel : ViewModel() {
                                 completedAt = System.currentTimeMillis(),
                             )
                         )
-                        return
+                        return false
                     }
                 }
                 RowMarks.Kind.NONE -> {}
@@ -252,6 +260,7 @@ class TapeViewModel : ViewModel() {
         dirty += targetId
         _uncommitted.update { it + targetId }
         scheduleIdleCommit()
+        return true
     }
 
     private fun pathLength(points: List<InkPoint>): Float {
