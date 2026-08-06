@@ -5,6 +5,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.zachzundel.encrier.Graph
 import com.zachzundel.encrier.Tunables
+import com.zachzundel.encrier.data.CorrectionEntity
 import com.zachzundel.encrier.data.InkPoint
 import com.zachzundel.encrier.data.ItemEntity
 import com.zachzundel.encrier.data.LineEntity
@@ -13,6 +14,7 @@ import com.zachzundel.encrier.data.StrokeEntity
 import com.zachzundel.encrier.data.TapeEntity
 import com.zachzundel.encrier.data.encodeCandidates
 import com.zachzundel.encrier.data.encodePoints
+import com.zachzundel.encrier.data.encodeStrokes
 import com.zachzundel.encrier.data.decodePoints
 import com.zachzundel.encrier.gesture.Elbow
 import com.zachzundel.encrier.gesture.RowMarks
@@ -401,6 +403,35 @@ class TapeViewModel : ViewModel() {
 
     fun chooseCandidate(lineId: Long, text: String) = panelAction(lineId) {
         it.copy(text = text)
+    }
+
+    /**
+     * Typed correction: records ink + candidates + the user's text as training
+     * data, then applies the text. Candidate picks deliberately don't record a
+     * correction — only typed text is ground truth the recognizer failed to rank.
+     */
+    fun correctText(lineId: Long, text: String) {
+        viewModelScope.launch {
+            mutex.withLock {
+                val cur = dao.itemForLine(lineId) ?: return@withLock
+                val corrected = text.trim()
+                if (corrected.isEmpty() || corrected == cur.text) return@withLock
+                ensureLoaded(lineId)
+                val strokes = _strokeCache.value[lineId].orEmpty().map { it.points }
+                dao.insertCorrection(
+                    CorrectionEntity(
+                        lineId = lineId,
+                        strokesJson = encodeStrokes(strokes),
+                        candidatesJson = cur.candidatesJson,
+                        correctedText = corrected,
+                        createdAt = System.currentTimeMillis(),
+                    )
+                )
+                Log.i("Encrier", "correction line=$lineId -> \"$corrected\"")
+                dao.updateItem(cur.copy(text = corrected))
+                _panelLineId.value = null
+            }
+        }
     }
 
     /** Delete removes the item AND its line + ink; the tape closes the gap. */

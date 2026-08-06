@@ -11,9 +11,11 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -408,6 +410,7 @@ fun TapeScreen(vm: TapeViewModel) {
                 modifier = Modifier
                     .align(Alignment.BottomCenter)
                     .fillMaxWidth()
+                    .imePadding()
                     .padding(12.dp),
             )
         }
@@ -478,6 +481,40 @@ private fun ItemPanel(vm: TapeViewModel, panel: TapeViewModel.Panel, modifier: M
                     )
                 }
             }
+        }
+        // Typed correction: the app's only keyboard input. A typed text (unlike
+        // a candidate pick) is saved with the ink as recognizer training data.
+        var correction by remember(item.lineId) { mutableStateOf("") }
+        Row(
+            Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            BasicTextField(
+                value = correction,
+                onValueChange = { correction = it },
+                singleLine = true,
+                textStyle = TextStyle(fontFamily = Serif, fontSize = 15.sp, color = InkBlack),
+                decorationBox = { inner ->
+                    Box {
+                        if (correction.isEmpty()) {
+                            Text(
+                                "type a correction…",
+                                fontFamily = Serif,
+                                fontSize = 15.sp,
+                                color = InkGray,
+                            )
+                        }
+                        inner()
+                    }
+                },
+                modifier = Modifier
+                    .weight(1f)
+                    .background(InkWhite, fieldShape)
+                    .border(1.dp, InkMargin, fieldShape)
+                    .padding(horizontal = 10.dp, vertical = 9.dp),
+            )
+            HardButton("apply", onClick = { vm.correctText(item.lineId, correction) })
         }
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             if (item.status == ItemEntity.OPEN) {
