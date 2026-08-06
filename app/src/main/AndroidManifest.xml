@@ -6,7 +6,7 @@
 
     <application
         android:name=".InkTaskApp"
-        android:label="InkTask"
+        android:label="Encrier"
         android:allowBackup="true"
         android:theme="@android:style/Theme.Material.Light.NoActionBar">
         <activity
