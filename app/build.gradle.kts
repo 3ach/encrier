@@ -46,4 +46,5 @@ dependencies {
     implementation("com.google.mlkit:digital-ink-recognition:18.1.0")
 
     testImplementation("junit:junit:4.13.2")
+    testImplementation("org.json:json:20240303") // android.jar's org.json stubs out in unit tests
 }
