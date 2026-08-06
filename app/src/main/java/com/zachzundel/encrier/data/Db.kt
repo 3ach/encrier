@@ -58,7 +58,7 @@ data class ItemEntity(
     val candidatesJson: String, // full ranked list from last recognition
     val parentId: Long? = null,
     val status: String,         // OPEN | DONE | DROPPED
-    val createdAt: Long,        // first commit time; never changes
+    val createdAt: Long,        // the item's listed date; nudgeable via the panel
     val completedAt: Long? = null,
     val droppedAt: Long? = null,
 ) {
@@ -85,6 +85,12 @@ interface TapeDao {
             "AND id NOT IN (SELECT lineId FROM items)"
     )
     suspend fun gcEmptyLines()
+    @Query("DELETE FROM strokes WHERE lineId NOT IN (SELECT id FROM lines)")
+    suspend fun gcOrphanStrokes()
+    @Query("DELETE FROM items WHERE lineId NOT IN (SELECT id FROM lines)")
+    suspend fun gcOrphanItems()
+    @Query("SELECT EXISTS(SELECT 1 FROM lines WHERE id = :id)")
+    suspend fun lineExists(id: Long): Boolean
     @Query("SELECT MAX(seq) FROM lines WHERE tapeId = :tapeId")
     suspend fun maxSeq(tapeId: Long): Double?
 
@@ -115,6 +121,8 @@ interface TapeDao {
     suspend fun strokeCount(lineId: Long): Int
     @Query("SELECT COALESCE(MAX(ord), -1) FROM strokes WHERE lineId = :lineId")
     suspend fun maxOrd(lineId: Long): Int
+    @Query("SELECT MIN(addedAt) FROM strokes WHERE lineId = :lineId")
+    suspend fun firstInkAt(lineId: Long): Long?
 
     @Query("DELETE FROM strokes WHERE lineId = :lineId")
     suspend fun deleteStrokesForLine(lineId: Long)

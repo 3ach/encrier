@@ -41,8 +41,11 @@ fun decodeCandidates(json: String): List<String> {
     return List(arr.length()) { i -> arr.getString(i) }
 }
 
+/** The tape lives on the owner's wall clock, not the device clock (which runs UTC). */
+val TAPE_ZONE: ZoneId = ZoneId.of("America/Los_Angeles")
+
 fun localDate(ts: Long): LocalDate =
-    Instant.ofEpochMilli(ts).atZone(ZoneId.systemDefault()).toLocalDate()
+    Instant.ofEpochMilli(ts).atZone(TAPE_ZONE).toLocalDate()
 
 private val dayMarkerFmt = DateTimeFormatter.ofPattern("MMM d — EEE", Locale.US)
 private val shortDateFmt = DateTimeFormatter.ofPattern("MMM d", Locale.US)
