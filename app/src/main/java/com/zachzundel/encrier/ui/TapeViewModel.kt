@@ -113,12 +113,12 @@ class TapeViewModel : ViewModel() {
         }
     }
 
-    fun onStrokeFinished(points: List<InkPoint>, inkRevealed: Boolean = false) {
+    fun onStrokeFinished(points: List<InkPoint>, inkRevealed: Boolean, layout: RowLayout) {
         if (points.isEmpty()) return
         _overlayStrokes.update { it + listOf(points) }
         viewModelScope.launch {
             try {
-                mutex.withLock { handleStroke(points, inkRevealed) }
+                mutex.withLock { handleStroke(points, inkRevealed, layout) }
             } finally {
                 // Keep the overlay briefly so Room's emission lands before removal.
                 launch {
@@ -129,14 +129,14 @@ class TapeViewModel : ViewModel() {
         }
     }
 
-    private suspend fun handleStroke(points: List<InkPoint>, inkRevealed: Boolean) {
+    private suspend fun handleStroke(points: List<InkPoint>, inkRevealed: Boolean, layout: RowLayout) {
         val now = System.currentTimeMillis()
         val lh = lineHeightPx
         val rowsNow = rows.value
 
         // Committed lines render as text (ink hidden), so the anchor region for
         // taps and gestures is the row's slot band, not the ink bbox.
-        val startSlot = floor(points.first().y / lh).toInt()
+        val startSlot = layout.slotAt(points.first().y)
         val startRow = rowsNow.getOrNull(startSlot)
         val anchored = startRow?.item != null && startRow.line.id !in _uncommitted.value
 
@@ -148,7 +148,8 @@ class TapeViewModel : ViewModel() {
 
         // Gesture detection runs BEFORE handwriting routing (spec §5).
         if (anchored) {
-            val m = Elbow.detect(points, (startSlot + 1) * lh, lh, gestureMinRunPx)
+            val anchorBottom = layout.topOf(startSlot) + layout.heightOf(startSlot)
+            val m = Elbow.detect(points, anchorBottom, lh, gestureMinRunPx)
             if (m.matched) {
                 spawnChild(rowsNow, startSlot, now)
                 scheduleIdleCommit()
@@ -164,7 +165,15 @@ class TapeViewModel : ViewModel() {
             // Strike-out → DONE; scribble-out → DELETE. Neither stores ink.
             val item = startRow!!.item!!
             textBounds[startRow.line.id]?.let { b ->
-                when (RowMarks.classify(points, startSlot * lh, lh, b[0], b[1])) {
+                val verdict = RowMarks.classify(
+                    points,
+                    rowTop = layout.topOf(startSlot),
+                    rowHeight = layout.heightOf(startSlot),
+                    writeLh = lh,
+                    textX0 = b[0],
+                    textX1 = b[1],
+                )
+                when (verdict) {
                     RowMarks.Kind.SCRIBBLE -> {
                         deleteLocked(startRow.line.id)
                         return
@@ -187,13 +196,13 @@ class TapeViewModel : ViewModel() {
 
         // Handwriting routing by y-centroid (spec §3).
         val centroidY = (points.sumOf { it.y.toDouble() } / points.size).toFloat()
-        val slot = floor(centroidY / lh).toInt().coerceAtLeast(0)
+        val slot = layout.slotAt(centroidY)
         val targetId: Long
         if (slot < rowsNow.size) {
             targetId = rowsNow[slot].line.id
         } else {
             // Create lines for every empty slot up to the written one so ink
-            // stays exactly where it was written (y = seq order × lineHeight).
+            // stays exactly where it was written.
             var seq = dao.maxSeq() ?: 0.0
             var lastId = -1L
             for (s in rowsNow.size..slot) {
@@ -203,7 +212,8 @@ class TapeViewModel : ViewModel() {
             targetId = lastId
         }
         ensureLoaded(targetId)
-        var rel = points.map { InkPoint(it.x, it.y - slot * lh, it.t) }
+        val slotTop = layout.topOf(slot)
+        var rel = points.map { InkPoint(it.x, it.y - slotTop, it.t) }
 
         // Appending to a text-displayed row: the pen wrote relative to the short
         // rendered text, not the original ink. Store shifted past the ink's right
@@ -242,10 +252,10 @@ class TapeViewModel : ViewModel() {
     }
 
     /** Touch tap on the tape at content-space y. Opens the panel if the row is committed. */
-    fun tapAt(contentY: Float) {
+    fun tapAt(contentY: Float, layout: RowLayout) {
         viewModelScope.launch {
             mutex.withLock {
-                val row = rows.value.getOrNull(floor(contentY / lineHeightPx).toInt()) ?: return@withLock
+                val row = rows.value.getOrNull(layout.slotAt(contentY)) ?: return@withLock
                 if (row.item != null && row.line.id !in _uncommitted.value) {
                     openPanelForLine(row.line.id)
                 }

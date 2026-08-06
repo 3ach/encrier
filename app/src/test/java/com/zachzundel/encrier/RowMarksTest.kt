@@ -20,13 +20,13 @@ class RowMarksTest {
     @Test
     fun `horizontal line across text is a strike`() {
         val stroke = line(10f, 45f, 430f, 50f)
-        assertEquals(RowMarks.Kind.STRIKE, RowMarks.classify(stroke, rowTop, lh, textX0, textX1))
+        assertEquals(RowMarks.Kind.STRIKE, RowMarks.classify(stroke, rowTop, lh, lh, textX0, textX1))
     }
 
     @Test
     fun `short dash is not a strike`() {
         val stroke = line(430f, 45f, 500f, 47f) // beyond text end — an amendment
-        assertEquals(RowMarks.Kind.NONE, RowMarks.classify(stroke, rowTop, lh, textX0, textX1))
+        assertEquals(RowMarks.Kind.NONE, RowMarks.classify(stroke, rowTop, lh, lh, textX0, textX1))
     }
 
     @Test
@@ -42,18 +42,18 @@ class RowMarksTest {
                 t += 10
             }
         }
-        assertEquals(RowMarks.Kind.SCRIBBLE, RowMarks.classify(pts, rowTop, lh, textX0, textX1))
+        assertEquals(RowMarks.Kind.SCRIBBLE, RowMarks.classify(pts, rowTop, lh, lh, textX0, textX1))
     }
 
     @Test
     fun `diagonal stroke is neither`() {
         val stroke = line(30f, 10f, 400f, 85f)
-        assertEquals(RowMarks.Kind.NONE, RowMarks.classify(stroke, rowTop, lh, textX0, textX1))
+        assertEquals(RowMarks.Kind.NONE, RowMarks.classify(stroke, rowTop, lh, lh, textX0, textX1))
     }
 
     @Test
     fun `stroke leaving the row band is neither`() {
         val stroke = line(30f, 45f, 400f, 200f)
-        assertEquals(RowMarks.Kind.NONE, RowMarks.classify(stroke, rowTop, lh, textX0, textX1))
+        assertEquals(RowMarks.Kind.NONE, RowMarks.classify(stroke, rowTop, lh, lh, textX0, textX1))
     }
 }

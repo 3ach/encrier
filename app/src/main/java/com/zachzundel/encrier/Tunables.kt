@@ -3,7 +3,9 @@ package com.zachzundel.encrier
 // Spec §9 — single tunables file. Gesture thresholds get calibrated from
 // ElbowDebug logs after a week of real use.
 object Tunables {
-    const val LINE_HEIGHT_DP = 72f        // calibrate to owner's handwriting
+    const val LINE_HEIGHT_DP = 72f        // writing height; calibrate to owner's handwriting
+    const val TEXT_ROW_DP = 34f           // tight height for committed (typed) rows
+    const val DAY_MARKER_INSET_DP = 14f   // extra height on tight rows carrying a day marker
     const val IDLE_COMMIT_MS = 2000L
     // Calibrated 2026-08-06 from ElbowDebug logs of Zach's real elbows:
     // drops past rule 37-52px (lh=90px), runs 44-56px, turns 84-112°.

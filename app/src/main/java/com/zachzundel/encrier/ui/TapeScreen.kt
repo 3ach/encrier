@@ -3,8 +3,6 @@ package com.zachzundel.encrier.ui
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
-import androidx.compose.ui.input.pointer.PointerEventType
-import androidx.compose.ui.input.pointer.changedToDown
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -24,8 +22,10 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateListOf
+import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -35,7 +35,9 @@ import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.PathEffect
 import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.input.pointer.PointerEventType
 import androidx.compose.ui.input.pointer.PointerType
+import androidx.compose.ui.input.pointer.changedToDown
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalDensity
@@ -43,7 +45,6 @@ import androidx.compose.ui.text.TextMeasurer
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.drawText
 import androidx.compose.ui.text.rememberTextMeasurer
-import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.zachzundel.encrier.Tunables
@@ -70,22 +71,70 @@ fun TapeScreen(vm: TapeViewModel) {
     val tm = rememberTextMeasurer()
     val density = LocalDensity.current
     val lh = with(density) { Tunables.LINE_HEIGHT_DP.dp.toPx() }
+    val textRowPx = with(density) { Tunables.TEXT_ROW_DP.dp.toPx() }
+    val markerPx = with(density) { Tunables.DAY_MARKER_INSET_DP.dp.toPx() }
 
     var scroll by remember { mutableFloatStateOf(0f) }
     var viewportH by remember { mutableFloatStateOf(0f) }
     var hoverSlot by remember { mutableStateOf<Int?>(null) } // content slot under the pen
     // Display mode latched per line at the first amendment stroke: true = ink
     // was revealed when writing began. Sticky until the amendment commits.
-    val latchedInk = remember { androidx.compose.runtime.mutableStateMapOf<Long, Boolean>() }
+    val latchedInk = remember { mutableStateMapOf<Long, Boolean>() }
     val active = remember { mutableStateListOf<InkPoint>() } // content coords
 
     LaunchedEffect(uncommitted) { latchedInk.keys.retainAll(uncommitted) }
 
-    // The last occupied line can never scroll off the top of the screen; the
-    // blank writing area below is bounded by keeping it at the first slot.
-    fun maxScroll() = ((rows.size - 1) * lh).coerceAtLeast(0f)
+    // Day markers derived at render time from data (spec §3).
+    val dayMarkers: Map<Int, String> = remember(rows) {
+        val markers = mutableMapOf<Int, String>()
+        var lastDate: LocalDate? = null
+        for ((i, row) in rows.withIndex()) {
+            val ts = row.line.firstInkAt ?: continue
+            val d = localDate(ts)
+            if (d != lastDate) {
+                markers[i] = dayMarkerLabel(ts)
+                lastDate = d
+            }
+        }
+        markers
+    }
+
+    // Child completion ratios for parent rows.
+    val childStats: Map<Long, Pair<Int, Int>> = remember(rows) {
+        rows.mapNotNull { it.item }.filter { it.parentId != null }
+            .groupBy { it.parentId!! }
+            .mapValues { (_, kids) -> kids.count { it.status == ItemEntity.DONE } to kids.size }
+    }
+
+    // Variable-height layout: tight rows for committed text, writing height for
+    // ink/blank rows and for the hover-grown or ink-latched row.
+    val layout = run {
+        val tops = FloatArray(rows.size)
+        val heights = FloatArray(rows.size)
+        var y = 0f
+        for ((i, row) in rows.withIndex()) {
+            val pending = row.line.id in uncommitted
+            val grownInk = row.item == null ||
+                (!pending && hoverSlot == i) ||
+                (pending && latchedInk[row.line.id] == true)
+            var h = if (grownInk) lh else textRowPx
+            if (!grownInk && dayMarkers.containsKey(i)) h += markerPx
+            tops[i] = y
+            heights[i] = h
+            y += h
+        }
+        RowLayout(tops, heights, lh)
+    }
+    val layoutState = rememberUpdatedState(layout)
+
+    fun maxScroll(): Float {
+        val l = layoutState.value
+        return (if (l.tops.isEmpty()) 0f else l.tops[l.tops.size - 1]).coerceAtLeast(0f)
+    }
+
     fun scrollToLatest() {
-        scroll = ((rows.size * lh) - viewportH + lh).coerceIn(0f, maxScroll())
+        val l = layoutState.value
+        scroll = (l.end - viewportH + lh).coerceIn(0f, maxScroll())
     }
 
     LaunchedEffect(lh) {
@@ -107,34 +156,11 @@ fun TapeScreen(vm: TapeViewModel) {
     // Lazy-load strokes for the visible line range (spec §2).
     LaunchedEffect(scroll, rows, viewportH) {
         if (viewportH <= 0f || rows.isEmpty()) return@LaunchedEffect
-        val firstIdx = ((scroll / lh).toInt() - 5).coerceAtLeast(0)
-        val lastIdx = (((scroll + viewportH) / lh).toInt() + 5).coerceAtMost(rows.size - 1)
-        if (lastIdx >= firstIdx) {
-            vm.loadVisible((firstIdx..lastIdx).map { rows[it].line.id })
-        }
-    }
-
-    // Day markers derived at render time from data (spec §3).
-    val dayMarkers: Map<Int, String> = remember(rows) {
-        val markers = mutableMapOf<Int, String>()
-        var lastDate: LocalDate? = null
-        for ((i, row) in rows.withIndex()) {
-            val ts = row.line.firstInkAt ?: continue
-            val d = localDate(ts)
-            if (d != lastDate) {
-                markers[i] = dayMarkerLabel(ts)
-                lastDate = d
-            }
-        }
-        markers
-    }
-
-    // Child completion ratios for parent rows.
-    val childStats: Map<Long, Pair<Int, Int>> = remember(rows) {
-        val byParent = rows.mapNotNull { it.item }.filter { it.parentId != null }.groupBy { it.parentId!! }
-        byParent.mapValues { (_, kids) ->
-            kids.count { it.status == ItemEntity.DONE } to kids.size
-        }
+        val l = layoutState.value
+        val ids = rows.indices.filter { i ->
+            l.topOf(i) + l.heightOf(i) >= scroll - 2 * lh && l.topOf(i) <= scroll + viewportH + 2 * lh
+        }.map { rows[it].line.id }
+        if (ids.isNotEmpty()) vm.loadVisible(ids)
     }
 
     Box(Modifier.fillMaxSize()) {
@@ -154,9 +180,9 @@ fun TapeScreen(vm: TapeViewModel) {
                         val event = awaitPointerEvent()
                         val down = event.changes.firstOrNull { it.changedToDown() }
                         if (down == null) {
-                            // Stylus hover reveals a committed row's ink for
-                            // amending — but only after a deliberate dwell, so a
-                            // pen descending to write doesn't trip it.
+                            // Stylus hover grows a committed row back to ink —
+                            // only after a deliberate dwell, so a pen descending
+                            // to write doesn't trip it.
                             val h = event.changes.firstOrNull {
                                 it.type == PointerType.Stylus && !it.pressed
                             }
@@ -165,15 +191,12 @@ fun TapeScreen(vm: TapeViewModel) {
                                     hoverSlot = null
                                     hoverCandidate = -1
                                 } else {
-                                    val slot = ((h.position.y + scroll) / lh).toInt()
+                                    val slot = layoutState.value.slotAt(h.position.y + scroll)
                                     if (slot != hoverCandidate) {
                                         hoverCandidate = slot
                                         hoverSince = h.uptimeMillis
                                         if (hoverSlot != null && hoverSlot != slot) hoverSlot = null
                                     } else if (h.uptimeMillis - hoverSince >= Tunables.HOVER_REVEAL_MS) {
-                                        // Promote only for committed, not-mid-amend rows;
-                                        // otherwise keep deferring so a commit can't be
-                                        // followed by a surprise flip to ink.
                                         val row = rows.getOrNull(slot)
                                         val id = row?.line?.id
                                         val eligible = row?.item != null &&
@@ -188,7 +211,7 @@ fun TapeScreen(vm: TapeViewModel) {
                         if (down.type == PointerType.Stylus) {
                             // Latch the row's display mode at the first stroke of an
                             // amendment; it must not change until the commit.
-                            val downSlot = ((down.position.y + scroll) / lh).toInt()
+                            val downSlot = layoutState.value.slotAt(down.position.y + scroll)
                             var strokeRevealed = false
                             rows.getOrNull(downSlot)?.let { r ->
                                 if (r.item != null && !latchedInk.containsKey(r.line.id)) {
@@ -200,8 +223,8 @@ fun TapeScreen(vm: TapeViewModel) {
                             active.clear()
                             active.add(InkPoint(down.position.x, down.position.y + scroll, down.uptimeMillis))
                             while (true) {
-                                val event = awaitPointerEvent()
-                                val ch = event.changes.firstOrNull { it.id == down.id } ?: break
+                                val event2 = awaitPointerEvent()
+                                val ch = event2.changes.firstOrNull { it.id == down.id } ?: break
                                 for (h in ch.historical) {
                                     active.add(InkPoint(h.position.x, h.position.y + scroll, h.uptimeMillis))
                                 }
@@ -212,7 +235,7 @@ fun TapeScreen(vm: TapeViewModel) {
                                 if (!ch.pressed) break
                             }
                             if (active.isNotEmpty()) {
-                                vm.onStrokeFinished(active.toList(), strokeRevealed)
+                                vm.onStrokeFinished(active.toList(), strokeRevealed, layoutState.value)
                             }
                             active.clear()
                             hoverCandidate = -1 // fresh dwell required after each stroke
@@ -223,8 +246,8 @@ fun TapeScreen(vm: TapeViewModel) {
                             var moved = 0f
                             var prevY = downPos.y
                             while (true) {
-                                val event = awaitPointerEvent()
-                                val ch = event.changes.firstOrNull { it.id == down.id } ?: break
+                                val event2 = awaitPointerEvent()
+                                val ch = event2.changes.firstOrNull { it.id == down.id } ?: break
                                 moved = maxOf(
                                     moved,
                                     abs(ch.position.x - downPos.x),
@@ -238,7 +261,7 @@ fun TapeScreen(vm: TapeViewModel) {
                                 if (!ch.pressed) break
                             }
                             if (moved <= TOUCH_TAP_SLOP_PX) {
-                                vm.tapAt(downPos.y + scroll)
+                                vm.tapAt(downPos.y + scroll, layoutState.value)
                             }
                         }
                         }
@@ -246,52 +269,52 @@ fun TapeScreen(vm: TapeViewModel) {
                 }
         ) {
             drawRect(InkWhite)
-            val firstSlot = (scroll / lh).toInt()
-            val lastSlot = ((scroll + size.height) / lh).toInt() + 1
-
-            for (i in firstSlot..lastSlot) {
-                val y = (i + 1) * lh - scroll
-                drawLine(InkFaint, Offset(0f, y), Offset(size.width, y), strokeWidth = 1.5f)
-            }
 
             for ((i, row) in rows.withIndex()) {
-                val top = i * lh - scroll
-                if (top + lh < -lh || top > size.height + lh) continue
+                val top = layout.tops[i] - scroll
+                val rowH = layout.heights[i]
+                if (top + rowH < -lh || top > size.height + lh) continue
 
-                dayMarkers[i]?.let { label ->
-                    drawText(
-                        textMeasurer = tm,
-                        text = label,
-                        topLeft = Offset(8.dp.toPx(), top + 3.dp.toPx()),
-                        style = TextStyle(color = InkGray, fontSize = 10.sp, fontFamily = Mono),
-                    )
-                }
+                // Bottom rule.
+                drawLine(InkFaint, Offset(0f, top + rowH), Offset(size.width, top + rowH), strokeWidth = 1.5f)
 
                 val isChild = row.isPendingChild || row.item?.parentId != null
                 val pending = row.line.id in uncommitted
                 val item = row.item
-                if (isChild) drawConnector(top, lh)
-
-                // Committed rows stay TEXT unless deliberately hover-revealed.
-                // Mid-amendment, the mode latched at the first stroke wins.
                 val showInk = when {
                     item == null -> true
                     pending -> latchedInk[row.line.id] == true
                     else -> hoverSlot == i
                 }
+                val marker = dayMarkers[i]
+                val markerInset = if (marker != null && !showInk) markerPx else 0f
+
+                marker?.let { label ->
+                    drawText(
+                        textMeasurer = tm,
+                        text = label,
+                        topLeft = Offset(8.dp.toPx(), top + 2.dp.toPx()),
+                        style = TextStyle(color = InkGray, fontSize = 10.sp, fontFamily = Mono),
+                    )
+                }
+
+                if (isChild) drawConnector(top + markerInset, rowH - markerInset)
+
                 if (!showInk) {
-                    drawItemRow(tm, item!!, childStats[item.id], top, lh, isChild, vm.textBounds)
+                    drawItemRow(
+                        tm, item!!, childStats[item.id], top + markerInset,
+                        rowH - markerInset, isChild, vm.textBounds,
+                    )
                     // Amendment strokes stay visible where they were written.
                     for (s in amendDisplay[row.line.id].orEmpty()) drawInkStroke(s.points, top)
                 } else {
-                    val strokes = cache[row.line.id].orEmpty()
-                    for (s in strokes) drawInkStroke(s.points, top)
+                    for (s in cache[row.line.id].orEmpty()) drawInkStroke(s.points, top)
                 }
                 if (pending) {
                     drawRoundRect(
                         color = InkGray,
-                        topLeft = Offset(8.dp.toPx(), top + lh - 16.dp.toPx()),
-                        size = androidx.compose.ui.geometry.Size(48.dp.toPx(), 12.dp.toPx()),
+                        topLeft = Offset(8.dp.toPx(), top + rowH - 14.dp.toPx()),
+                        size = androidx.compose.ui.geometry.Size(40.dp.toPx(), 10.dp.toPx()),
                         style = Stroke(
                             width = 1.5f,
                             pathEffect = PathEffect.dashPathEffect(floatArrayOf(6f, 4f)),
@@ -300,12 +323,19 @@ fun TapeScreen(vm: TapeViewModel) {
                 }
             }
 
+            // Blank writing area below the last row.
+            var yb = layout.end + lh
+            while (yb - scroll <= size.height + lh) {
+                drawLine(InkFaint, Offset(0f, yb - scroll), Offset(size.width, yb - scroll), strokeWidth = 1.5f)
+                yb += lh
+            }
+
             for (strokePoints in overlay) drawContentStroke(strokePoints, scroll)
             if (active.isNotEmpty()) drawContentStroke(active, scroll)
         }
 
         // Only offer the jump when the latest line is actually off-screen.
-        if (rows.isNotEmpty() && rows.size * lh - scroll > viewportH + 1f) {
+        if (rows.isNotEmpty() && layout.end - scroll > viewportH + 1f) {
             HardButton(
                 label = "↓ LATEST",
                 modifier = Modifier
@@ -379,7 +409,7 @@ private fun DrawScope.drawItemRow(
     item: ItemEntity,
     childStat: Pair<Int, Int>?,
     top: Float,
-    lh: Float,
+    rowH: Float,
     isChild: Boolean,
     boundsOut: MutableMap<Long, FloatArray>,
 ) {
@@ -392,11 +422,11 @@ private fun DrawScope.drawItemRow(
     // style; apply color at draw time and the strike as an explicit line.
     val layout = tm.measure(
         item.text,
-        style = TextStyle(fontSize = 17.sp),
+        style = TextStyle(fontSize = 16.sp),
         maxLines = 1,
     )
     boundsOut[item.lineId] = floatArrayOf(textX, textX + layout.size.width)
-    val textTop = top + (lh - layout.size.height) / 2f
+    val textTop = top + (rowH - layout.size.height) / 2f
     drawText(
         layout,
         color = if (dropped) InkGray else InkBlack,
@@ -425,7 +455,7 @@ private fun DrawScope.drawItemRow(
         metaLayout,
         topLeft = Offset(
             size.width - metaLayout.size.width - 12.dp.toPx(),
-            top + (lh - metaLayout.size.height) / 2f,
+            top + (rowH - metaLayout.size.height) / 2f,
         ),
     )
 }
@@ -457,9 +487,9 @@ private fun DrawScope.drawContentStroke(points: List<InkPoint>, scroll: Float) {
 }
 
 /** Crisp connector glyph (└─) marking a spawned child line (spec §5). */
-private fun DrawScope.drawConnector(top: Float, lh: Float) {
+private fun DrawScope.drawConnector(top: Float, rowH: Float) {
     val x = 16.dp.toPx()
-    val midY = top + lh * 0.55f
-    drawLine(InkBlack, Offset(x, top + lh * 0.1f), Offset(x, midY), strokeWidth = 3f)
+    val midY = top + rowH * 0.55f
+    drawLine(InkBlack, Offset(x, top + rowH * 0.1f), Offset(x, midY), strokeWidth = 3f)
     drawLine(InkBlack, Offset(x, midY), Offset(x + 22.dp.toPx(), midY), strokeWidth = 3f)
 }

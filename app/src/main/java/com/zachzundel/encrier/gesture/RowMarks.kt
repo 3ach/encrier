@@ -16,7 +16,8 @@ object RowMarks {
     fun classify(
         points: List<InkPoint>,
         rowTop: Float,
-        lineHeightPx: Float,
+        rowHeight: Float,
+        writeLh: Float,
         textX0: Float,
         textX1: Float,
     ): Kind {
@@ -31,13 +32,14 @@ object RowMarks {
             if (p.y < minY) minY = p.y
             if (p.y > maxY) maxY = p.y
         }
-        // Must stay within the row band (small tolerance for slop).
-        if (minY < rowTop - 0.2f * lineHeightPx) return Kind.NONE
-        if (maxY > rowTop + 1.2f * lineHeightPx) return Kind.NONE
+        // Must stay near the row band; wobble tolerance scales with the
+        // WRITING line height, not the (possibly tight) row height.
+        if (minY < rowTop - 0.25f * writeLh) return Kind.NONE
+        if (maxY > rowTop + rowHeight + 0.25f * writeLh) return Kind.NONE
 
         val textW = max(1f, textX1 - textX0)
         val cover = max(0f, min(maxX, textX1) - max(minX, textX0)) / textW
-        val heightFrac = (maxY - minY) / lineHeightPx
+        val heightFrac = (maxY - minY) / writeLh
         val reversals = horizontalReversals(points)
 
         if (cover >= Tunables.SCRIBBLE_MIN_COVER &&
