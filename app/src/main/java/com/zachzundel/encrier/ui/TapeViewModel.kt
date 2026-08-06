@@ -442,10 +442,7 @@ class TapeViewModel(
                     if (remaining.isEmpty()) {
                         dao.itemForLine(lineId)?.let { dao.deleteItem(it.id) }
                         dao.deleteLine(lineId)
-                        _strokeCache.update { it - lineId }
-                        textBounds.remove(lineId)
-                        clearPendingRecognition(lineId)
-                        if (_panelLineId.value == lineId) _panelLineId.value = null
+                        clearLineState(lineId)
                     } else {
                         _strokeCache.update { it + (lineId to remaining) }
                         if (dao.itemForLine(lineId) != null) {
@@ -612,10 +609,8 @@ class TapeViewModel(
         dao.deleteItem(cur.id)
         dao.deleteStrokesForLine(lineId)
         dao.deleteLine(lineId)
-        _strokeCache.update { it - lineId }
-        textBounds.remove(lineId)
-        clearPendingRecognition(lineId)
-        _panelLineId.value = null
+        clearLineState(lineId)
+        _panelLineId.value = null // delete closes the panel even for another line
     }
 
     /** Forgets any in-flight recognition state for the line. */
@@ -625,6 +620,14 @@ class TapeViewModel(
         _uncommitted.update { it - lineId }
         amendOffset.remove(lineId)
         _amendDisplay.update { it - lineId }
+    }
+
+    /** In-memory teardown once a line's row has left the tape. */
+    private fun clearLineState(lineId: Long) {
+        _strokeCache.update { it - lineId }
+        textBounds.remove(lineId)
+        clearPendingRecognition(lineId)
+        if (_panelLineId.value == lineId) _panelLineId.value = null
     }
 
     /** Re-fetches the item inside the lock so actions never write stale fields. */
@@ -705,8 +708,7 @@ class TapeViewModel(
                 dao.deleteLine(lineId)
                 pendingParent.update { it - lineId }
                 spawnedAt.remove(lineId)
-                _strokeCache.update { it - lineId }
-                dirty.remove(lineId)
+                clearLineState(lineId)
             }
         }
         for (lineId in dirty.toList()) {
@@ -762,10 +764,7 @@ class TapeViewModel(
                 spawnedAt.remove(lineId)
             }
             // Blank recognition: no item, ink retained (spec §4).
-            dirty.remove(lineId)
-            _uncommitted.update { it - lineId }
-            amendOffset.remove(lineId)
-            _amendDisplay.update { it - lineId }
+            clearPendingRecognition(lineId)
         }
         if (retryNeeded) scheduleRetryCommit() // must stay last: cancels our own job
     }

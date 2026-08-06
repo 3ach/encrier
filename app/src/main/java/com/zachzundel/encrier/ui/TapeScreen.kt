@@ -45,6 +45,16 @@ import kotlin.math.abs
 
 private const val TOUCH_TAP_SLOP_PX = 12f
 
+/**
+ * Whether a row displays its ink rather than its committed text: blank rows
+ * always, pending rows once their display latched to ink, committed rows
+ * under a dwelled hover. (Hover *eligibility* in the pointer loop is a
+ * different predicate — has an item, and not pending unless latched — so it
+ * stays inline there.)
+ */
+private fun showsInk(item: ItemEntity?, pending: Boolean, latched: Boolean, hovered: Boolean): Boolean =
+    item == null || (pending && latched) || (!pending && hovered)
+
 @OptIn(androidx.compose.ui.ExperimentalComposeUiApi::class)
 @Composable
 fun TapeScreen(vm: TapeViewModel) {
@@ -96,9 +106,7 @@ fun TapeScreen(vm: TapeViewModel) {
         var y = 0f
         for ((i, row) in rows.withIndex()) {
             val pending = row.line.id in uncommitted
-            val grownInk = row.item == null ||
-                (!pending && hoverSlot == i) ||
-                (pending && latchedInk[row.line.id] == true)
+            val grownInk = showsInk(row.item, pending, latchedInk[row.line.id] == true, hoverSlot == i)
             var h = if (grownInk) lh else textRowPx
             if (!grownInk && dayMarkers.containsKey(i)) h += markerPx
             tops[i] = y
@@ -217,9 +225,8 @@ fun TapeScreen(vm: TapeViewModel) {
                                 val slot = l.slotAt(cy)
                                 val row = rows.getOrNull(slot) ?: return
                                 val pending = row.line.id in uncommitted
-                                val inkVisible = row.item == null ||
-                                    (pending && latchedInk[row.line.id] == true) ||
-                                    (!pending && hoverSlot == slot)
+                                val inkVisible =
+                                    showsInk(row.item, pending, latchedInk[row.line.id] == true, hoverSlot == slot)
                                 if (!inkVisible) return
                                 vm.eraseAt(
                                     row.line.id,
@@ -299,11 +306,7 @@ fun TapeScreen(vm: TapeViewModel) {
                 val isChild = row.isPendingChild || row.item?.parentId != null
                 val pending = row.line.id in uncommitted
                 val item = row.item
-                val showInk = when {
-                    item == null -> true
-                    pending -> latchedInk[row.line.id] == true
-                    else -> hoverSlot == i
-                }
+                val showInk = showsInk(item, pending, latchedInk[row.line.id] == true, hoverSlot == i)
                 val marker = dayMarkers[i]
                 val markerInset = if (marker != null && !showInk) markerPx else 0f
 
