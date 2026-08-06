@@ -19,7 +19,11 @@ import androidx.compose.ui.input.pointer.changedToDown
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.unit.IntSize
+import androidx.compose.ui.input.pointer.isSecondaryPressed
+import androidx.compose.ui.input.pointer.isTertiaryPressed
 import com.zachzundel.encrier.data.InkPoint
+
+private const val ERASE_RADIUS_BOX_PX = 14f
 
 private data class InkXform(
     val minX: Float,
@@ -40,6 +44,7 @@ fun WritableInkPreview(
     strokes: List<List<InkPoint>>,
     modifier: Modifier,
     onStroke: (List<InkPoint>) -> Unit,
+    onErase: (InkPoint, Float) -> Unit,
 ) {
     var boxSize by remember { mutableStateOf(IntSize.Zero) }
     var xform by remember { mutableStateOf<InkXform?>(null) }
@@ -49,10 +54,17 @@ fun WritableInkPreview(
     val justWritten = remember { mutableStateListOf<Pair<Int, List<InkPoint>>>() }
     val strokesState = rememberUpdatedState(strokes)
     val onStrokeState = rememberUpdatedState(onStroke)
+    val onEraseState = rememberUpdatedState(onErase)
     val xformState = rememberUpdatedState(xform)
 
+    var prevSize by remember { mutableStateOf(strokes.size) }
     LaunchedEffect(strokes.size) {
-        justWritten.removeAll { it.first <= strokes.size }
+        if (strokes.size < prevSize) {
+            justWritten.clear() // strokes were erased; stored list is authoritative
+        } else {
+            justWritten.removeAll { it.first <= strokes.size }
+        }
+        prevSize = strokes.size
     }
 
     LaunchedEffect(boxSize, strokes.isNotEmpty()) {
@@ -93,6 +105,30 @@ fun WritableInkPreview(
                         val down = event.changes.firstOrNull { it.changedToDown() } ?: continue
                         if (down.type != PointerType.Stylus) continue // touch passes to scroll
                         down.consume()
+                        if (event.buttons.isSecondaryPressed || event.buttons.isTertiaryPressed) {
+                            // Barrel button: erase strokes in line coordinates.
+                            fun erase(pos: Offset) {
+                                val xf = xformState.value ?: return
+                                onEraseState.value(
+                                    InkPoint(
+                                        xf.minX + (pos.x - xf.ox) / xf.scale,
+                                        xf.minY + (pos.y - xf.oy) / xf.scale,
+                                        0L,
+                                    ),
+                                    ERASE_RADIUS_BOX_PX / xf.scale,
+                                )
+                            }
+                            erase(down.position)
+                            while (true) {
+                                val ev = awaitPointerEvent()
+                                val ch = ev.changes.firstOrNull { it.id == down.id } ?: break
+                                for (h in ch.historical) erase(h.position)
+                                if (ch.pressed) erase(ch.position)
+                                ch.consume()
+                                if (!ch.pressed) break
+                            }
+                            continue
+                        }
                         active.clear()
                         active.add(InkPoint(down.position.x, down.position.y, down.uptimeMillis))
                         while (true) {

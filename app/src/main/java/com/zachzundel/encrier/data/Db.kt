@@ -72,6 +72,7 @@ interface TapeDao {
     fun observeLines(): Flow<List<LineRow>>
 
     @Insert suspend fun insertStroke(s: StrokeEntity): Long
+    @Query("DELETE FROM strokes WHERE id = :id") suspend fun deleteStroke(id: Long)
     @Query("SELECT * FROM strokes WHERE lineId IN (:lineIds) ORDER BY lineId, ord")
     suspend fun strokesFor(lineIds: List<Long>): List<StrokeEntity>
     @Query("SELECT COUNT(*) FROM strokes WHERE lineId = :lineId")

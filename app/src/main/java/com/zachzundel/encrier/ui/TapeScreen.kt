@@ -38,6 +38,8 @@ import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.input.pointer.PointerEventType
 import androidx.compose.ui.input.pointer.PointerType
 import androidx.compose.ui.input.pointer.changedToDown
+import androidx.compose.ui.input.pointer.isSecondaryPressed
+import androidx.compose.ui.input.pointer.isTertiaryPressed
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalDensity
@@ -77,6 +79,8 @@ fun TapeScreen(vm: TapeViewModel) {
     var scroll by remember { mutableFloatStateOf(0f) }
     var viewportH by remember { mutableFloatStateOf(0f) }
     var hoverSlot by remember { mutableStateOf<Int?>(null) } // content slot under the pen
+    var eraserPos by remember { mutableStateOf<Offset?>(null) } // screen coords while erasing
+    val eraseRadiusPx = with(density) { 10.dp.toPx() }
     // Display mode latched per line at the first amendment stroke: true = ink
     // was revealed when writing began. Sticky until the amendment commits.
     val latchedInk = remember { mutableStateMapOf<Long, Boolean>() }
@@ -208,7 +212,40 @@ fun TapeScreen(vm: TapeViewModel) {
                             continue
                         }
                         down.consume()
-                        if (down.type == PointerType.Stylus) {
+                        if (down.type == PointerType.Stylus &&
+                            (event.buttons.isSecondaryPressed || event.buttons.isTertiaryPressed)
+                        ) {
+                            // Barrel button held: stroke eraser. Deletes whole
+                            // strokes it contacts, on rows displaying ink.
+                            fun eraseSample(pos: Offset) {
+                                val cy = pos.y + scroll
+                                val l = layoutState.value
+                                val slot = l.slotAt(cy)
+                                val row = rows.getOrNull(slot) ?: return
+                                val pending = row.line.id in uncommitted
+                                val inkVisible = row.item == null ||
+                                    (pending && latchedInk[row.line.id] == true) ||
+                                    (!pending && hoverSlot == slot)
+                                if (!inkVisible) return
+                                vm.eraseAt(
+                                    row.line.id,
+                                    InkPoint(pos.x, cy - l.topOf(slot), 0L),
+                                    eraseRadiusPx,
+                                )
+                            }
+                            eraseSample(down.position)
+                            eraserPos = down.position
+                            while (true) {
+                                val ev = awaitPointerEvent()
+                                val ch = ev.changes.firstOrNull { it.id == down.id } ?: break
+                                for (h in ch.historical) eraseSample(h.position)
+                                if (ch.pressed) eraseSample(ch.position)
+                                eraserPos = ch.position
+                                ch.consume()
+                                if (!ch.pressed) break
+                            }
+                            eraserPos = null
+                        } else if (down.type == PointerType.Stylus) {
                             // Latch the row's display mode at the first stroke of an
                             // amendment; it must not change until the commit.
                             val downSlot = layoutState.value.slotAt(down.position.y + scroll)
@@ -341,6 +378,10 @@ fun TapeScreen(vm: TapeViewModel) {
 
             for (strokePoints in overlay) drawContentStroke(strokePoints, scroll)
             if (active.isNotEmpty()) drawContentStroke(active, scroll)
+
+            eraserPos?.let { pos ->
+                drawCircle(InkGray, radius = eraseRadiusPx, center = pos, style = Stroke(width = 1.5f))
+            }
         }
 
         // Only offer the jump when the latest line is actually off-screen.
@@ -389,6 +430,7 @@ private fun ItemPanel(vm: TapeViewModel, panel: TapeViewModel.Panel, modifier: M
                     .height(88.dp)
                     .border(1.dp, InkMargin, fieldShape),
                 onStroke = { vm.appendInkTo(item.lineId, it) },
+                onErase = { p, r -> vm.eraseAt(item.lineId, p, r) },
             )
         }
         Text(

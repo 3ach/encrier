@@ -32,7 +32,7 @@ class TapeViewModel : ViewModel() {
     private val dao = Graph.db.dao()
     private val recog = Graph.recognition
 
-    data class RenderStroke(val points: List<InkPoint>) // line-relative
+    data class RenderStroke(val points: List<InkPoint>, val id: Long = 0L) // line-relative
     data class TapeRow(val line: LineRow, val item: ItemEntity?, val isPendingChild: Boolean)
 
     // Set by the UI once it knows its geometry.
@@ -106,7 +106,7 @@ class TapeViewModel : ViewModel() {
         viewModelScope.launch {
             val loaded = dao.strokesFor(missing)
                 .groupBy { it.lineId }
-                .mapValues { (_, ss) -> ss.map { RenderStroke(decodePoints(it.pointsJson)) } }
+                .mapValues { (_, ss) -> ss.map { RenderStroke(decodePoints(it.pointsJson), it.id) } }
             _strokeCache.update { cur ->
                 cur + missing.associateWith { loaded[it] ?: emptyList() }
             }
@@ -253,10 +253,10 @@ class TapeViewModel : ViewModel() {
         }
 
         val ord = dao.maxOrd(targetId) + 1
-        dao.insertStroke(
+        val strokeId = dao.insertStroke(
             StrokeEntity(lineId = targetId, ord = ord, pointsJson = encodePoints(rel), addedAt = now)
         )
-        _strokeCache.update { it + (targetId to it[targetId].orEmpty() + RenderStroke(rel)) }
+        _strokeCache.update { it + (targetId to it[targetId].orEmpty() + RenderStroke(rel, strokeId)) }
         dirty += targetId
         _uncommitted.update { it + targetId }
         scheduleIdleCommit()
@@ -272,6 +272,42 @@ class TapeViewModel : ViewModel() {
             )
         }
         return len
+    }
+
+    /**
+     * Stroke eraser: deletes any of the line's strokes within [radiusPx] of the
+     * line-relative point. Erasing the last stroke removes the item and line.
+     */
+    fun eraseAt(lineId: Long, p: InkPoint, radiusPx: Float) {
+        viewModelScope.launch {
+            mutex.withLock {
+                ensureLoaded(lineId)
+                val strokes = _strokeCache.value[lineId].orEmpty()
+                val hit = strokes.filter { s ->
+                    s.points.any { q -> kotlin.math.hypot(q.x - p.x, q.y - p.y) <= radiusPx }
+                }
+                if (hit.isEmpty()) return@withLock
+                for (s in hit) if (s.id != 0L) dao.deleteStroke(s.id)
+                val remaining = strokes - hit.toSet()
+                if (remaining.isEmpty()) {
+                    dao.itemForLine(lineId)?.let { dao.deleteItem(it.id) }
+                    dao.deleteLine(lineId)
+                    _strokeCache.update { it - lineId }
+                    textBounds.remove(lineId)
+                    dirty.remove(lineId)
+                    _uncommitted.update { it - lineId }
+                    amendOffset.remove(lineId)
+                    _amendDisplay.update { it - lineId }
+                    if (_panelLineId.value == lineId) _panelLineId.value = null
+                } else {
+                    _strokeCache.update { it + (lineId to remaining) }
+                    if (dao.itemForLine(lineId) != null) {
+                        dirty += lineId
+                        scheduleIdleCommit()
+                    }
+                }
+            }
+        }
     }
 
     /** Touch tap on the tape at content-space y. Opens the panel if the row is committed. */
@@ -302,7 +338,7 @@ class TapeViewModel : ViewModel() {
             mutex.withLock {
                 ensureLoaded(lineId)
                 val ord = dao.maxOrd(lineId) + 1
-                dao.insertStroke(
+                val strokeId = dao.insertStroke(
                     StrokeEntity(
                         lineId = lineId,
                         ord = ord,
@@ -310,7 +346,7 @@ class TapeViewModel : ViewModel() {
                         addedAt = System.currentTimeMillis(),
                     )
                 )
-                _strokeCache.update { it + (lineId to it[lineId].orEmpty() + RenderStroke(rel)) }
+                _strokeCache.update { it + (lineId to it[lineId].orEmpty() + RenderStroke(rel, strokeId)) }
                 dirty += lineId
                 _uncommitted.update { it + lineId }
                 scheduleIdleCommit()
@@ -441,7 +477,7 @@ class TapeViewModel : ViewModel() {
 
     private suspend fun ensureLoaded(lineId: Long) {
         if (_strokeCache.value.containsKey(lineId)) return
-        val loaded = dao.strokesFor(listOf(lineId)).map { RenderStroke(decodePoints(it.pointsJson)) }
+        val loaded = dao.strokesFor(listOf(lineId)).map { RenderStroke(decodePoints(it.pointsJson), it.id) }
         _strokeCache.update { it + (lineId to loaded) }
     }
 }
