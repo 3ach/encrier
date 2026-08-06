@@ -51,7 +51,7 @@ internal fun ItemPanel(vm: TapeViewModel, panel: TapeViewModel.Panel, modifier: 
                 onErase = { p, r -> vm.eraseAt(item.lineId, p, r) },
             )
         }
-        // Date row: the caption plus quiet nudges to relist the item on another day.
+        // Date row: caption + nudges on the left, item actions on the right.
         Row(
             Modifier.fillMaxWidth(),
             verticalAlignment = Alignment.CenterVertically,
@@ -63,10 +63,17 @@ internal fun ItemPanel(vm: TapeViewModel, panel: TapeViewModel.Panel, modifier: 
                 fontStyle = FontStyle.Italic,
                 fontSize = 12.sp,
                 color = InkGray,
-                modifier = Modifier.weight(1f),
             )
             DateNudge("◂") { vm.shiftItemDate(item.lineId, -1) }
             DateNudge("▸") { vm.shiftItemDate(item.lineId, +1) }
+            Spacer(Modifier.weight(1f))
+            if (item.status == ItemEntity.OPEN) {
+                HardButton("done", onClick = { vm.markDone(item.lineId) })
+                HardButton("drop", onClick = { vm.markDropped(item.lineId) })
+            } else {
+                HardButton("reopen", onClick = { vm.reopen(item.lineId) })
+            }
+            HardButton("delete", onClick = { vm.deleteItem(item.lineId) })
         }
         // Suggestions as a collapsed dropdown.
         Column(Modifier.fillMaxWidth().border(1.dp, InkMargin, fieldShape).padding(2.dp)) {
@@ -108,17 +115,6 @@ internal fun ItemPanel(vm: TapeViewModel, panel: TapeViewModel.Panel, modifier: 
             )
             HardButton("apply", onClick = { vm.correctText(item.lineId, correction) })
         }
-        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            if (item.status == ItemEntity.OPEN) {
-                HardButton("done", onClick = { vm.markDone(item.lineId) })
-                HardButton("drop", onClick = { vm.markDropped(item.lineId) })
-            } else {
-                HardButton("reopen", onClick = { vm.reopen(item.lineId) })
-            }
-            HardButton("delete", onClick = { vm.deleteItem(item.lineId) })
-            Spacer(Modifier.width(8.dp))
-            HardButton("close", onClick = { vm.closePanel() })
-        }
     }
 }
 
@@ -130,7 +126,7 @@ private fun DateNudge(label: String, onClick: () -> Unit) {
         label,
         color = InkGray,
         fontSize = 16.sp,
-        fontFamily = Mono,
+        fontFamily = Serif,
         modifier = Modifier
             .border(1.dp, InkMargin, shape)
             .background(InkWhite, shape)

@@ -286,7 +286,12 @@ class TapeViewModel(
         val startRow = rowAt(startSlot)
         val anchored = startRow?.item != null && startRow.line.id !in _uncommitted.value
 
-        // A tap-length stylus stroke on a committed row opens its panel, not ink.
+        // A tap-length stylus stroke on a committed row opens its panel, not
+        // ink — unless a panel is already open, in which case it closes it.
+        if (pathLength(points) < tapMaxLenPx && _panelLineId.value != null) {
+            _panelLineId.value = null
+            return false
+        }
         if (anchored && pathLength(points) < tapMaxLenPx) {
             openPanelForLine(startRow!!.line.id)
             return false
@@ -462,11 +467,18 @@ class TapeViewModel(
         }
     }
 
-    /** Touch tap on the tape at content-space y. Opens the panel if the row is committed. */
+    /**
+     * Touch tap on the tape. With a panel open, any tap outside the card just
+     * closes it; otherwise it opens the tapped committed row's panel.
+     */
     fun tapAt(contentY: Float, layout: RowLayout) {
         viewModelScope.launch {
             try {
                 mutex.withLock {
+                    if (_panelLineId.value != null) {
+                        _panelLineId.value = null
+                        return@withLock
+                    }
                     val lineId = layout.lineIds.getOrNull(layout.slotAt(contentY)) ?: return@withLock
                     val row = rows.value.firstOrNull { it.line.id == lineId } ?: return@withLock
                     if (row.item != null && row.line.id !in _uncommitted.value) {

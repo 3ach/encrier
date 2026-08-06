@@ -72,9 +72,9 @@ fun HardButton(
     Text(
         text = label,
         color = if (selected) InkWhite else InkBlack,
-        fontSize = 13.sp,
+        fontSize = 14.sp,
         fontWeight = FontWeight.Medium,
-        fontFamily = Mono,
+        fontFamily = Serif,
         modifier = modifier
             .border(1.5.dp, InkBlack, shape)
             .background(if (selected) InkBlack else InkWhite, shape)
