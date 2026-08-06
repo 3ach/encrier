@@ -17,6 +17,7 @@ import androidx.compose.ui.input.pointer.changedToDown
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.unit.IntSize
+import androidx.compose.ui.input.pointer.isPrimaryPressed
 import androidx.compose.ui.input.pointer.isSecondaryPressed
 import androidx.compose.ui.input.pointer.isTertiaryPressed
 import androidx.compose.ui.unit.dp
@@ -93,9 +94,20 @@ fun WritableInkPreview(
                     while (true) {
                         val event = awaitPointerEvent()
                         val down = event.changes.firstOrNull { it.changedToDown() } ?: continue
-                        if (down.type != PointerType.Stylus) continue // touch passes to scroll
+                        if (down.type != PointerType.Stylus &&
+                            down.type != PointerType.Eraser
+                        ) continue // touch passes to scroll
                         down.consume()
-                        if (event.buttons.isSecondaryPressed || event.buttons.isTertiaryPressed) {
+                        android.util.Log.i(
+                            "EraserDebug",
+                            "box down type=${down.type} " +
+                                "pri=${event.buttons.isPrimaryPressed} " +
+                                "sec=${event.buttons.isSecondaryPressed} " +
+                                "ter=${event.buttons.isTertiaryPressed}"
+                        )
+                        if (down.type == PointerType.Eraser ||
+                            event.buttons.isSecondaryPressed || event.buttons.isTertiaryPressed
+                        ) {
                             // Barrel button: erase strokes in line coordinates.
                             fun erase(pos: Offset) {
                                 val xf = xformState.value ?: return

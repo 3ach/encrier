@@ -5,7 +5,7 @@ import java.time.LocalDate
 import java.time.ZoneId
 
 /** The date-relevant slice of a tape row, in tape order. */
-data class DatedRow(val lineId: Long, val firstInkAt: Long?)
+data class DatedRow(val lineId: Long, val firstInkAt: Long?) // ts: item listed date if present, else first ink
 
 private fun dateOf(ts: Long, zone: ZoneId): LocalDate =
     Instant.ofEpochMilli(ts).atZone(zone).toLocalDate()

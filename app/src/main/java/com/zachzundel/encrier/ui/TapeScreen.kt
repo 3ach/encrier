@@ -28,6 +28,9 @@ import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.input.pointer.PointerEventType
 import androidx.compose.ui.input.pointer.PointerType
 import androidx.compose.ui.input.pointer.changedToDown
+import androidx.compose.ui.input.pointer.isBackPressed
+import androidx.compose.ui.input.pointer.isForwardPressed
+import androidx.compose.ui.input.pointer.isPrimaryPressed
 import androidx.compose.ui.input.pointer.isSecondaryPressed
 import androidx.compose.ui.input.pointer.isTertiaryPressed
 import androidx.compose.ui.input.pointer.pointerInput
@@ -88,7 +91,7 @@ fun TapeScreen(vm: TapeViewModel) {
 
     // Day markers derived at render time from data (spec §3).
     val dayMarkers: Map<Int, String> = remember(rows) {
-        dayMarkerSlots(rows.map { DatedRow(it.line.id, it.line.firstInkAt) }, TAPE_ZONE)
+        dayMarkerSlots(rows.map { DatedRow(it.line.id, it.item?.createdAt ?: it.line.firstInkAt) }, TAPE_ZONE)
             .mapValues { (_, ts) -> dayMarkerLabel(ts) }
     }
 
@@ -216,8 +219,21 @@ fun TapeScreen(vm: TapeViewModel) {
                             continue
                         }
                         down.consume()
-                        if (down.type == PointerType.Stylus &&
-                            (event.buttons.isSecondaryPressed || event.buttons.isTertiaryPressed)
+                        val stylusLike =
+                            down.type == PointerType.Stylus || down.type == PointerType.Eraser
+                        if (stylusLike) {
+                            Log.i(
+                                "EraserDebug",
+                                "down type=${down.type} pri=${event.buttons.isPrimaryPressed} " +
+                                    "sec=${event.buttons.isSecondaryPressed} " +
+                                    "ter=${event.buttons.isTertiaryPressed} " +
+                                    "back=${event.buttons.isBackPressed} " +
+                                    "fwd=${event.buttons.isForwardPressed}"
+                            )
+                        }
+                        if (down.type == PointerType.Eraser ||
+                            (stylusLike &&
+                                (event.buttons.isSecondaryPressed || event.buttons.isTertiaryPressed))
                         ) {
                             // Barrel button held: stroke eraser. Deletes whole
                             // strokes it contacts, on rows displaying ink.

@@ -94,6 +94,8 @@ interface TapeDao {
     suspend fun gcOrphanItems()
     @Query("SELECT EXISTS(SELECT 1 FROM lines WHERE id = :id)")
     suspend fun lineExists(id: Long): Boolean
+    @Query("UPDATE lines SET seq = :seq WHERE id = :id")
+    suspend fun updateLineSeq(id: Long, seq: Double)
     @Query("SELECT MAX(seq) FROM lines WHERE tapeId = :tapeId")
     suspend fun maxSeq(tapeId: Long): Double?
 

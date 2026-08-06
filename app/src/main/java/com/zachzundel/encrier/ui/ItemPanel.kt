@@ -129,12 +129,12 @@ private fun DateNudge(label: String, onClick: () -> Unit) {
     Text(
         label,
         color = InkGray,
-        fontSize = 12.sp,
+        fontSize = 16.sp,
         fontFamily = Mono,
         modifier = Modifier
             .border(1.dp, InkMargin, shape)
             .background(InkWhite, shape)
             .hardClickable(onClick)
-            .padding(horizontal = 9.dp, vertical = 3.dp),
+            .padding(horizontal = 18.dp, vertical = 10.dp),
     )
 }

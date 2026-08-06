@@ -20,6 +20,7 @@ import com.zachzundel.encrier.data.encodeCandidates
 import com.zachzundel.encrier.data.encodePoints
 import com.zachzundel.encrier.data.encodeStrokes
 import com.zachzundel.encrier.data.decodePoints
+import com.zachzundel.encrier.data.localDate
 import com.zachzundel.encrier.gesture.Elbow
 import com.zachzundel.encrier.gesture.RowMarks
 import com.zachzundel.encrier.ink.Recognition
@@ -140,7 +141,7 @@ class TapeViewModel(
      */
     val availableDates: StateFlow<List<Pair<LocalDate, Long>>> =
         rows.map { rowsNow ->
-            availableDates(rowsNow.map { DatedRow(it.line.id, it.line.firstInkAt) }, TAPE_ZONE)
+            availableDates(rowsNow.map { DatedRow(it.line.id, it.item?.createdAt ?: it.line.firstInkAt) }, TAPE_ZONE)
         }.stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
 
     /** Jump-to-date scroll request: the tape consumes it once handled. */
@@ -583,7 +584,9 @@ class TapeViewModel(
             try {
                 mutex.withLock {
                     val cur = dao.itemForLine(lineId) ?: return@withLock
-                    dao.updateItem(cur.copy(createdAt = cur.createdAt + days * DAY_MS))
+                    val newTs = cur.createdAt + days * DAY_MS
+                    dao.updateItem(cur.copy(createdAt = newTs))
+                    relocateForDate(lineId, newTs)
                 }
             } catch (e: CancellationException) {
                 throw e
@@ -591,6 +594,34 @@ class TapeViewModel(
                 Log.i("Encrier", "shiftItemDate failed: ${e.message}")
             }
         }
+    }
+
+    /**
+     * A re-dated item belongs in its new date's block: move its line to the
+     * end of the last run whose effective date ≤ the new date. Effective date
+     * = the item's listed date when there is one, else first-ink time.
+     */
+    private suspend fun relocateForDate(lineId: Long, newTs: Long) {
+        val rowsNow = rows.value
+        val self = rowsNow.firstOrNull { it.line.id == lineId } ?: return
+        val others = rowsNow.filter { it.line.id != lineId }
+        if (others.isEmpty()) return
+        val newDate = localDate(newTs)
+        var afterIdx = -1
+        for ((i, r) in others.withIndex()) {
+            val ts = (if (r.line.id == lineId) null else r.item?.createdAt ?: r.line.firstInkAt)
+                ?: continue
+            if (localDate(ts) <= newDate) afterIdx = i
+        }
+        val prevSeq = others.getOrNull(afterIdx)?.line?.seq
+        val nextSeq = others.getOrNull(afterIdx + 1)?.line?.seq
+        val newSeq = when {
+            prevSeq == null && nextSeq == null -> return
+            prevSeq == null -> nextSeq!! - 1.0
+            nextSeq == null -> prevSeq + 1.0
+            else -> (prevSeq + nextSeq) / 2.0
+        }
+        if (newSeq != self.line.seq) dao.updateLineSeq(lineId, newSeq)
     }
 
     /** Delete removes the item AND its line + ink; the tape closes the gap. */
