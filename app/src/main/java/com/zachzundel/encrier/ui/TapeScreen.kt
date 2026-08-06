@@ -73,7 +73,12 @@ fun TapeScreen(vm: TapeViewModel) {
     var scroll by remember { mutableFloatStateOf(0f) }
     var viewportH by remember { mutableFloatStateOf(0f) }
     var hoverSlot by remember { mutableStateOf<Int?>(null) } // content slot under the pen
+    // Display mode latched per line at the first amendment stroke: true = ink
+    // was revealed when writing began. Sticky until the amendment commits.
+    val latchedInk = remember { androidx.compose.runtime.mutableStateMapOf<Long, Boolean>() }
     val active = remember { mutableStateListOf<InkPoint>() } // content coords
+
+    LaunchedEffect(uncommitted) { latchedInk.keys.retainAll(uncommitted) }
 
     fun contentH() = (rows.size + EXTRA_BLANK_LINES) * lh
     fun maxScroll() = (contentH() - viewportH).coerceAtLeast(0f)
@@ -162,7 +167,14 @@ fun TapeScreen(vm: TapeViewModel) {
                                         hoverSince = h.uptimeMillis
                                         if (hoverSlot != null && hoverSlot != slot) hoverSlot = null
                                     } else if (h.uptimeMillis - hoverSince >= Tunables.HOVER_REVEAL_MS) {
-                                        hoverSlot = slot
+                                        // Promote only for committed, not-mid-amend rows;
+                                        // otherwise keep deferring so a commit can't be
+                                        // followed by a surprise flip to ink.
+                                        val row = rows.getOrNull(slot)
+                                        val id = row?.line?.id
+                                        val eligible = row?.item != null &&
+                                            (id !in uncommitted || latchedInk[id] == true)
+                                        if (eligible) hoverSlot = slot else hoverSince = h.uptimeMillis
                                     }
                                 }
                             }
@@ -170,6 +182,14 @@ fun TapeScreen(vm: TapeViewModel) {
                         }
                         down.consume()
                         if (down.type == PointerType.Stylus) {
+                            // Latch the row's display mode at the first stroke of an
+                            // amendment; it must not change until the commit.
+                            val downSlot = ((down.position.y + scroll) / lh).toInt()
+                            rows.getOrNull(downSlot)?.let { r ->
+                                if (r.item != null && !latchedInk.containsKey(r.line.id)) {
+                                    latchedInk[r.line.id] = (hoverSlot == downSlot)
+                                }
+                            }
                             // Stylus draws (spec §3). Raw capture incl. historical points.
                             active.clear()
                             active.add(InkPoint(down.position.x, down.position.y + scroll, down.uptimeMillis))
@@ -187,6 +207,7 @@ fun TapeScreen(vm: TapeViewModel) {
                             }
                             if (active.isNotEmpty()) vm.onStrokeFinished(active.toList())
                             active.clear()
+                            hoverCandidate = -1 // fresh dwell required after each stroke
                         } else {
                             // Touch scrolls; a movement-free touch is a tap.
                             hoverSlot = null
@@ -243,10 +264,15 @@ fun TapeScreen(vm: TapeViewModel) {
                 val item = row.item
                 if (isChild) drawConnector(top, lh)
 
-                // Committed rows stay TEXT even while an amendment is pending —
-                // ink shows only under stylus hover (to see where to amend).
-                if (item != null && hoverSlot != i) {
-                    drawItemRow(tm, item, childStats[item.id], top, lh, isChild, vm.textBounds)
+                // Committed rows stay TEXT unless deliberately hover-revealed.
+                // Mid-amendment, the mode latched at the first stroke wins.
+                val showInk = when {
+                    item == null -> true
+                    pending -> latchedInk[row.line.id] == true
+                    else -> hoverSlot == i
+                }
+                if (!showInk) {
+                    drawItemRow(tm, item!!, childStats[item.id], top, lh, isChild, vm.textBounds)
                 } else {
                     val strokes = cache[row.line.id].orEmpty()
                     for (s in strokes) drawInkStroke(s.points, top)
