@@ -14,6 +14,7 @@ import com.zachzundel.encrier.data.encodeCandidates
 import com.zachzundel.encrier.data.encodePoints
 import com.zachzundel.encrier.data.decodePoints
 import com.zachzundel.encrier.gesture.Elbow
+import com.zachzundel.encrier.gesture.RowMarks
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -39,6 +40,9 @@ class TapeViewModel : ViewModel() {
     var tapeWidthPx = 1f
     var gestureMinRunPx = 0f
     var tapMaxLenPx = 0f
+
+    /** Rendered text span [x0, x1] per committed line, reported by the UI each draw. */
+    val textBounds = java.util.concurrent.ConcurrentHashMap<Long, FloatArray>()
 
     /** Spawned-but-uncommitted child lines: lineId -> parent item id. In-memory by design. */
     private val pendingParent = MutableStateFlow<Map<Long, Long>>(emptyMap())
@@ -141,6 +145,28 @@ class TapeViewModel : ViewModel() {
                         .format(m.dropPastRulePx, m.turnDeg, m.runPx)
                 )
             }
+            // Strike-out → DONE; scribble-out → DELETE. Neither stores ink.
+            val item = startRow!!.item!!
+            textBounds[startRow.line.id]?.let { b ->
+                when (RowMarks.classify(points, startSlot * lh, lh, b[0], b[1])) {
+                    RowMarks.Kind.SCRIBBLE -> {
+                        deleteLocked(startRow.line.id)
+                        return
+                    }
+                    RowMarks.Kind.STRIKE -> {
+                        if (item.status == ItemEntity.OPEN) {
+                            dao.updateItem(
+                                item.copy(
+                                    status = ItemEntity.DONE,
+                                    completedAt = System.currentTimeMillis(),
+                                )
+                            )
+                            return
+                        }
+                    }
+                    RowMarks.Kind.NONE -> {}
+                }
+            }
         }
 
         // Handwriting routing by y-centroid (spec §3).
@@ -223,17 +249,20 @@ class TapeViewModel : ViewModel() {
     /** Delete removes the item AND its line + ink; the tape closes the gap. */
     fun deleteItem(lineId: Long) {
         viewModelScope.launch {
-            mutex.withLock {
-                val cur = dao.itemForLine(lineId) ?: return@withLock
-                dao.deleteItem(cur.id)
-                dao.deleteStrokesForLine(lineId)
-                dao.deleteLine(lineId)
-                _strokeCache.update { it - lineId }
-                dirty.remove(lineId)
-                _uncommitted.update { it - lineId }
-                _panelLineId.value = null
-            }
+            mutex.withLock { deleteLocked(lineId) }
         }
+    }
+
+    private suspend fun deleteLocked(lineId: Long) {
+        val cur = dao.itemForLine(lineId) ?: return
+        dao.deleteItem(cur.id)
+        dao.deleteStrokesForLine(lineId)
+        dao.deleteLine(lineId)
+        _strokeCache.update { it - lineId }
+        textBounds.remove(lineId)
+        dirty.remove(lineId)
+        _uncommitted.update { it - lineId }
+        _panelLineId.value = null
     }
 
     /** Re-fetches the item inside the lock so actions never write stale fields. */

@@ -14,4 +14,10 @@ object Tunables {
     const val GESTURE_TURN_MAX_DEG = 120f
     const val STROKE_BBOX_PAD_DP = 4f
     const val GESTURE_DEBUG = true         // log strokes that start on committed ink but fail detection
+
+    // Strike-out (→ DONE) and scribble-out (→ DELETE) over a committed row's text.
+    const val STRIKE_MIN_COVER = 0.6f       // horizontal overlap with text span, fraction
+    const val STRIKE_MAX_HEIGHT_FRAC = 0.4f // × lineHeight max vertical extent
+    const val SCRIBBLE_MIN_COVER = 0.4f
+    const val SCRIBBLE_MIN_REVERSALS = 4    // horizontal direction changes
 }

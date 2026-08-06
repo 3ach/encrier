@@ -3,8 +3,8 @@ package com.zachzundel.encrier.ui
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
-import androidx.compose.foundation.gestures.awaitEachGesture
-import androidx.compose.foundation.gestures.awaitFirstDown
+import androidx.compose.ui.input.pointer.PointerEventType
+import androidx.compose.ui.input.pointer.changedToDown
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -72,6 +72,7 @@ fun TapeScreen(vm: TapeViewModel) {
 
     var scroll by remember { mutableFloatStateOf(0f) }
     var viewportH by remember { mutableFloatStateOf(0f) }
+    var hoverSlot by remember { mutableStateOf<Int?>(null) } // content slot under the pen
     val active = remember { mutableStateListOf<InkPoint>() } // content coords
 
     fun contentH() = (rows.size + EXTRA_BLANK_LINES) * lh
@@ -137,10 +138,24 @@ fun TapeScreen(vm: TapeViewModel) {
                     vm.tapeWidthPx = it.width.toFloat()
                 }
                 .pointerInput(Unit) {
-                    awaitEachGesture {
-                        val down = awaitFirstDown()
+                    awaitPointerEventScope {
+                        while (true) {
+                        val event = awaitPointerEvent()
+                        val down = event.changes.firstOrNull { it.changedToDown() }
+                        if (down == null) {
+                            // Stylus hover reveals a committed row's ink for amending.
+                            val h = event.changes.firstOrNull {
+                                it.type == PointerType.Stylus && !it.pressed
+                            }
+                            if (h != null) {
+                                hoverSlot = if (event.type == PointerEventType.Exit) null
+                                else ((h.position.y + scroll) / lh).toInt()
+                            }
+                            continue
+                        }
                         down.consume()
                         if (down.type == PointerType.Stylus) {
+                            hoverSlot = ((down.position.y + scroll) / lh).toInt()
                             // Stylus draws (spec §3). Raw capture incl. historical points.
                             active.clear()
                             active.add(InkPoint(down.position.x, down.position.y + scroll, down.uptimeMillis))
@@ -160,6 +175,7 @@ fun TapeScreen(vm: TapeViewModel) {
                             active.clear()
                         } else {
                             // Touch scrolls; a movement-free touch is a tap.
+                            hoverSlot = null
                             val downPos = down.position
                             var moved = 0f
                             var prevY = downPos.y
@@ -181,6 +197,7 @@ fun TapeScreen(vm: TapeViewModel) {
                             if (moved <= TOUCH_TAP_SLOP_PX) {
                                 vm.tapAt(downPos.y + scroll)
                             }
+                        }
                         }
                     }
                 }
@@ -210,27 +227,26 @@ fun TapeScreen(vm: TapeViewModel) {
                 val isChild = row.isPendingChild || row.item?.parentId != null
                 val pending = row.line.id in uncommitted
                 val item = row.item
+                if (isChild) drawConnector(top, lh)
 
-                if (item != null && !pending) {
-                    // Committed: clean text row; ink hidden (on demand via tap).
-                    if (isChild) drawConnector(top, lh)
-                    drawItemRow(tm, item, childStats[item.id], top, lh, isChild)
+                // Committed rows stay TEXT even while an amendment is pending —
+                // ink shows only under stylus hover (to see where to amend).
+                if (item != null && hoverSlot != i) {
+                    drawItemRow(tm, item, childStats[item.id], top, lh, isChild, vm.textBounds)
                 } else {
-                    // Uncommitted (being written/amended) or blank line: show ink.
-                    if (isChild) drawConnector(top, lh)
                     val strokes = cache[row.line.id].orEmpty()
                     for (s in strokes) drawInkStroke(s.points, top)
-                    if (pending) {
-                        drawRoundRect(
-                            color = InkGray,
-                            topLeft = Offset(8.dp.toPx(), top + lh - 16.dp.toPx()),
-                            size = androidx.compose.ui.geometry.Size(48.dp.toPx(), 12.dp.toPx()),
-                            style = Stroke(
-                                width = 1.5f,
-                                pathEffect = PathEffect.dashPathEffect(floatArrayOf(6f, 4f)),
-                            ),
-                        )
-                    }
+                }
+                if (pending) {
+                    drawRoundRect(
+                        color = InkGray,
+                        topLeft = Offset(8.dp.toPx(), top + lh - 16.dp.toPx()),
+                        size = androidx.compose.ui.geometry.Size(48.dp.toPx(), 12.dp.toPx()),
+                        style = Stroke(
+                            width = 1.5f,
+                            pathEffect = PathEffect.dashPathEffect(floatArrayOf(6f, 4f)),
+                        ),
+                    )
                 }
             }
 
@@ -312,6 +328,7 @@ private fun DrawScope.drawItemRow(
     top: Float,
     lh: Float,
     isChild: Boolean,
+    boundsOut: MutableMap<Long, FloatArray>,
 ) {
     val done = item.status == ItemEntity.DONE
     val dropped = item.status == ItemEntity.DROPPED
@@ -325,6 +342,7 @@ private fun DrawScope.drawItemRow(
         style = TextStyle(fontSize = 17.sp),
         maxLines = 1,
     )
+    boundsOut[item.lineId] = floatArrayOf(textX, textX + layout.size.width)
     val textTop = top + (lh - layout.size.height) / 2f
     drawText(
         layout,
