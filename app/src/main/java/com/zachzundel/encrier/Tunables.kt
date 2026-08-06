@@ -5,8 +5,11 @@ package com.zachzundel.encrier
 object Tunables {
     const val LINE_HEIGHT_DP = 72f        // calibrate to owner's handwriting
     const val IDLE_COMMIT_MS = 2000L
-    const val GESTURE_MIN_DROP_FRAC = 0.5f // × lineHeight past anchor's bottom rule
-    const val GESTURE_MIN_RUN_DP = 76f     // ≈2cm; also ≥1.0× segment A's drop
+    // Calibrated 2026-08-06 from ElbowDebug logs of Zach's real elbows:
+    // drops past rule 37-52px (lh=90px), runs 44-56px, turns 84-112°.
+    const val GESTURE_MIN_DROP_FRAC = 0.35f // × lineHeight past anchor's bottom rule
+    const val GESTURE_MIN_RUN_DP = 36f      // also ≥ RUN_VS_DROP × segment A's drop
+    const val GESTURE_RUN_VS_DROP = 0.75f
     const val GESTURE_TURN_MIN_DEG = 60f
     const val GESTURE_TURN_MAX_DEG = 120f
     const val STROKE_BBOX_PAD_DP = 4f

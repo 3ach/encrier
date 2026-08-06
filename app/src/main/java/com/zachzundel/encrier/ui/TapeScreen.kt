@@ -282,7 +282,7 @@ private fun ItemPanel(vm: TapeViewModel, panel: TapeViewModel.Panel, modifier: M
                 label = candidate,
                 modifier = Modifier.fillMaxWidth(),
                 selected = candidate == item.text,
-                onClick = { vm.chooseCandidate(item, candidate) },
+                onClick = { vm.chooseCandidate(item.lineId, candidate) },
             )
         }
         Text(
@@ -293,12 +293,12 @@ private fun ItemPanel(vm: TapeViewModel, panel: TapeViewModel.Panel, modifier: M
         )
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             if (item.status == ItemEntity.OPEN) {
-                HardButton("DONE", onClick = { vm.markDone(item) })
-                HardButton("DROP", onClick = { vm.markDropped(item) })
+                HardButton("DONE", onClick = { vm.markDone(item.lineId) })
+                HardButton("DROP", onClick = { vm.markDropped(item.lineId) })
             } else {
-                HardButton("REOPEN", onClick = { vm.reopen(item) })
+                HardButton("REOPEN", onClick = { vm.reopen(item.lineId) })
             }
-            HardButton("DELETE", onClick = { vm.deleteItem(item) })
+            HardButton("DELETE", onClick = { vm.deleteItem(item.lineId) })
             Spacer(Modifier.width(8.dp))
             HardButton("CLOSE", onClick = { vm.closePanel() })
         }
@@ -316,16 +316,30 @@ private fun DrawScope.drawItemRow(
     val done = item.status == ItemEntity.DONE
     val dropped = item.status == ItemEntity.DROPPED
     val textX = if (isChild) 52.dp.toPx() else 16.dp.toPx()
+    // TextMeasurer's layout cache ignores draw-only attributes (color,
+    // textDecoration) but returns layouts that still carry them — a struck-
+    // through layout would be replayed after REOPEN. Measure with a constant
+    // style; apply color at draw time and the strike as an explicit line.
     val layout = tm.measure(
         item.text,
-        style = TextStyle(
-            color = if (dropped) InkGray else InkBlack,
-            fontSize = 17.sp,
-            textDecoration = if (done) TextDecoration.LineThrough else null,
-        ),
+        style = TextStyle(fontSize = 17.sp),
         maxLines = 1,
     )
-    drawText(layout, topLeft = Offset(textX, top + (lh - layout.size.height) / 2f))
+    val textTop = top + (lh - layout.size.height) / 2f
+    drawText(
+        layout,
+        color = if (dropped) InkGray else InkBlack,
+        topLeft = Offset(textX, textTop),
+    )
+    if (done) {
+        val cy = textTop + layout.size.height / 2f
+        drawLine(
+            InkBlack,
+            Offset(textX - 2.dp.toPx(), cy),
+            Offset(textX + layout.size.width + 2.dp.toPx(), cy),
+            strokeWidth = 2.5f,
+        )
+    }
 
     val meta = buildString {
         childStat?.let { (d, t) -> append(d).append("/").append(t).append("  ") }

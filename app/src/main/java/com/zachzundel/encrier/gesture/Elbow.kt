@@ -65,7 +65,7 @@ object Elbow {
                 "turn point too shallow past rule"
             bx <= abs(by) ->
                 "segment B not predominantly rightward"
-            run < max(minRunPx, ay) ->
+            run < max(minRunPx, Tunables.GESTURE_RUN_VS_DROP * ay) ->
                 "rightward run too short"
             turnDeg < Tunables.GESTURE_TURN_MIN_DEG || turnDeg > Tunables.GESTURE_TURN_MAX_DEG ->
                 "turn angle out of range"

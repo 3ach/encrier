@@ -56,14 +56,25 @@ class TapeViewModel : ViewModel() {
 
     /** Inline action panel for a tapped committed line: source ink on demand + actions. */
     data class Panel(val item: ItemEntity, val strokes: List<List<InkPoint>>)
-    private val _panel = MutableStateFlow<Panel?>(null)
-    val panel: StateFlow<Panel?> = _panel.asStateFlow()
+    private val _panelLineId = MutableStateFlow<Long?>(null)
 
     val rows: StateFlow<List<TapeRow>> =
         combine(dao.observeLines(), dao.observeItems(), pendingParent) { lines, items, pending ->
             val byLine = items.associateBy { it.lineId }
             lines.map { TapeRow(it, byLine[it.id], pending.containsKey(it.id)) }
         }.stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
+
+    /**
+     * Derived from the DB flows, never a snapshot: buttons always reflect current
+     * state, and the panel closes itself if the item vanishes.
+     */
+    val panel: StateFlow<Panel?> =
+        combine(_panelLineId, rows, _strokeCache) { lineId, rowsNow, cache ->
+            if (lineId == null) null
+            else rowsNow.firstOrNull { it.line.id == lineId }?.item?.let { item ->
+                Panel(item, cache[lineId].orEmpty().map { it.points })
+            }
+        }.stateIn(viewModelScope, SharingStarted.Eagerly, null)
 
     private val dirty = mutableSetOf<Long>() // lines needing (re-)recognition
     private var idleJob: Job? = null
@@ -185,46 +196,53 @@ class TapeViewModel : ViewModel() {
     }
 
     private suspend fun openPanelForLine(lineId: Long) {
-        val item = dao.itemForLine(lineId) ?: return
         ensureLoaded(lineId)
-        _panel.value = Panel(item, _strokeCache.value[lineId].orEmpty().map { it.points })
+        _panelLineId.value = lineId
     }
 
     fun closePanel() {
-        _panel.value = null
+        _panelLineId.value = null
     }
 
-    fun markDone(item: ItemEntity) = panelAction {
-        dao.updateItem(item.copy(status = ItemEntity.DONE, completedAt = System.currentTimeMillis()))
+    fun markDone(lineId: Long) = panelAction(lineId) {
+        it.copy(status = ItemEntity.DONE, completedAt = System.currentTimeMillis())
     }
 
-    fun markDropped(item: ItemEntity) = panelAction {
-        dao.updateItem(item.copy(status = ItemEntity.DROPPED, droppedAt = System.currentTimeMillis()))
+    fun markDropped(lineId: Long) = panelAction(lineId) {
+        it.copy(status = ItemEntity.DROPPED, droppedAt = System.currentTimeMillis())
     }
 
-    fun reopen(item: ItemEntity) = panelAction {
-        dao.updateItem(item.copy(status = ItemEntity.OPEN, completedAt = null, droppedAt = null))
+    fun reopen(lineId: Long) = panelAction(lineId) {
+        it.copy(status = ItemEntity.OPEN, completedAt = null, droppedAt = null)
     }
 
-    fun chooseCandidate(item: ItemEntity, text: String) = panelAction {
-        dao.updateItem(item.copy(text = text))
+    fun chooseCandidate(lineId: Long, text: String) = panelAction(lineId) {
+        it.copy(text = text)
     }
 
     /** Delete removes the item AND its line + ink; the tape closes the gap. */
-    fun deleteItem(item: ItemEntity) = panelAction {
-        dao.deleteItem(item.id)
-        dao.deleteStrokesForLine(item.lineId)
-        dao.deleteLine(item.lineId)
-        _strokeCache.update { it - item.lineId }
-        dirty.remove(item.lineId)
-        _uncommitted.update { it - item.lineId }
-    }
-
-    private fun panelAction(block: suspend () -> Unit) {
+    fun deleteItem(lineId: Long) {
         viewModelScope.launch {
             mutex.withLock {
-                block()
-                _panel.value = null
+                val cur = dao.itemForLine(lineId) ?: return@withLock
+                dao.deleteItem(cur.id)
+                dao.deleteStrokesForLine(lineId)
+                dao.deleteLine(lineId)
+                _strokeCache.update { it - lineId }
+                dirty.remove(lineId)
+                _uncommitted.update { it - lineId }
+                _panelLineId.value = null
+            }
+        }
+    }
+
+    /** Re-fetches the item inside the lock so actions never write stale fields. */
+    private fun panelAction(lineId: Long, transform: (ItemEntity) -> ItemEntity) {
+        viewModelScope.launch {
+            mutex.withLock {
+                val cur = dao.itemForLine(lineId) ?: return@withLock
+                dao.updateItem(transform(cur))
+                _panelLineId.value = null
             }
         }
     }
