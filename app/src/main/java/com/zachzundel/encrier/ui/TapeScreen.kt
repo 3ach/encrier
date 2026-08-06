@@ -139,23 +139,37 @@ fun TapeScreen(vm: TapeViewModel) {
                 }
                 .pointerInput(Unit) {
                     awaitPointerEventScope {
+                        var hoverCandidate = -1
+                        var hoverSince = 0L
                         while (true) {
                         val event = awaitPointerEvent()
                         val down = event.changes.firstOrNull { it.changedToDown() }
                         if (down == null) {
-                            // Stylus hover reveals a committed row's ink for amending.
+                            // Stylus hover reveals a committed row's ink for
+                            // amending — but only after a deliberate dwell, so a
+                            // pen descending to write doesn't trip it.
                             val h = event.changes.firstOrNull {
                                 it.type == PointerType.Stylus && !it.pressed
                             }
                             if (h != null) {
-                                hoverSlot = if (event.type == PointerEventType.Exit) null
-                                else ((h.position.y + scroll) / lh).toInt()
+                                if (event.type == PointerEventType.Exit) {
+                                    hoverSlot = null
+                                    hoverCandidate = -1
+                                } else {
+                                    val slot = ((h.position.y + scroll) / lh).toInt()
+                                    if (slot != hoverCandidate) {
+                                        hoverCandidate = slot
+                                        hoverSince = h.uptimeMillis
+                                        if (hoverSlot != null && hoverSlot != slot) hoverSlot = null
+                                    } else if (h.uptimeMillis - hoverSince >= Tunables.HOVER_REVEAL_MS) {
+                                        hoverSlot = slot
+                                    }
+                                }
                             }
                             continue
                         }
                         down.consume()
                         if (down.type == PointerType.Stylus) {
-                            hoverSlot = ((down.position.y + scroll) / lh).toInt()
                             // Stylus draws (spec §3). Raw capture incl. historical points.
                             active.clear()
                             active.add(InkPoint(down.position.x, down.position.y + scroll, down.uptimeMillis))
