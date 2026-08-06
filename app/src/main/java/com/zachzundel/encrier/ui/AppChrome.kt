@@ -16,7 +16,6 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -30,6 +29,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -127,63 +128,26 @@ private fun TapePickerCard(
     onCreate: (String) -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    val cardShape = androidx.compose.foundation.shape.RoundedCornerShape(10.dp)
-    val fieldShape = androidx.compose.foundation.shape.RoundedCornerShape(8.dp)
     var newName by rememberSaveable { mutableStateOf("") }
     Column(
-        modifier
-            .background(InkWhite, cardShape)
-            .border(1.5.dp, InkBlack, cardShape)
-            .padding(14.dp),
+        modifier.notebookCard(),
         verticalArrangement = Arrangement.spacedBy(6.dp),
     ) {
         for (tape in tapes) {
-            val selected = tape.id == currentTapeId
-            Text(
-                tapeDisplayName(tape),
-                fontFamily = Serif,
-                fontSize = 15.sp,
-                color = if (selected) InkWhite else InkBlack,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .background(if (selected) InkBlack else InkWhite, fieldShape)
-                    .hardClickable { onSwitch(tape.id) }
-                    .padding(horizontal = 10.dp, vertical = 8.dp),
-            )
+            SelectableRow(tapeDisplayName(tape), selected = tape.id == currentTapeId) {
+                onSwitch(tape.id)
+            }
         }
         Row(
             Modifier.fillMaxWidth(),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(8.dp),
         ) {
-            BasicTextField(
+            QuietField(
                 value = newName,
                 onValueChange = { newName = it },
-                singleLine = true,
-                textStyle = androidx.compose.ui.text.TextStyle(
-                    fontFamily = Serif,
-                    fontSize = 15.sp,
-                    color = InkBlack,
-                ),
-                cursorBrush = androidx.compose.ui.graphics.SolidColor(InkBlack),
-                modifier = Modifier
-                    .weight(1f)
-                    .border(1.dp, InkMargin, fieldShape)
-                    .background(InkWhite, fieldShape)
-                    .padding(horizontal = 10.dp, vertical = 9.dp),
-                decorationBox = { inner ->
-                    Box {
-                        if (newName.isEmpty()) {
-                            Text(
-                                "new tape",
-                                fontFamily = Serif,
-                                fontSize = 15.sp,
-                                color = InkGray,
-                            )
-                        }
-                        inner()
-                    }
-                },
+                placeholder = "new tape",
+                modifier = Modifier.weight(1f),
             )
             HardButton(
                 "create",
@@ -205,12 +169,9 @@ private fun DatePickerCard(
     onPick: (Long) -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    val shape = androidx.compose.foundation.shape.RoundedCornerShape(10.dp)
     Column(
         modifier
-            .background(InkWhite, shape)
-            .border(1.5.dp, InkBlack, shape)
-            .padding(8.dp)
+            .notebookCard(8.dp)
             .heightIn(max = 340.dp)
             .verticalScroll(rememberScrollState()),
     ) {
@@ -240,9 +201,13 @@ private fun DatePickerCard(
     }
 }
 
-/** Calendar glyph in the same drawn style as ClockButton. */
+/** Small toggle button drawing its glyph in the selection-inverted color. */
 @Composable
-private fun CalendarButton(selected: Boolean, onClick: () -> Unit) {
+private fun GlyphButton(
+    selected: Boolean,
+    onClick: () -> Unit,
+    glyph: DrawScope.(Color) -> Unit,
+) {
     val shape = androidx.compose.foundation.shape.RoundedCornerShape(7.dp)
     Box(
         Modifier
@@ -251,44 +216,37 @@ private fun CalendarButton(selected: Boolean, onClick: () -> Unit) {
             .hardClickable(onClick)
             .padding(8.dp),
     ) {
-        Canvas(Modifier.size(20.dp)) {
-            val c = if (selected) InkWhite else InkBlack
-            val w = size.width
-            val h = size.height
-            val bodyTop = h * 0.18f
-            drawRoundRect(
-                color = c,
-                topLeft = Offset(w * 0.05f, bodyTop),
-                size = Size(w * 0.9f, h - bodyTop - 1f),
-                cornerRadius = CornerRadius(3f, 3f),
-                style = Stroke(width = 2f),
-            )
-            // Header rule under the top edge.
-            val ruleY = bodyTop + h * 0.2f
-            drawLine(c, Offset(w * 0.05f, ruleY), Offset(w * 0.95f, ruleY), strokeWidth = 2f)
-            // Binding ticks above the body.
-            drawLine(c, Offset(w * 0.32f, 0f), Offset(w * 0.32f, bodyTop + 2f), strokeWidth = 2f)
-            drawLine(c, Offset(w * 0.68f, 0f), Offset(w * 0.68f, bodyTop + 2f), strokeWidth = 2f)
-        }
+        Canvas(Modifier.size(20.dp)) { glyph(if (selected) InkWhite else InkBlack) }
     }
 }
 
+/** Calendar glyph in the same drawn style as ClockButton. */
 @Composable
-private fun ClockButton(selected: Boolean, onClick: () -> Unit) {
-    val shape = androidx.compose.foundation.shape.RoundedCornerShape(7.dp)
-    Box(
-        Modifier
-            .border(1.5.dp, InkBlack, shape)
-            .background(if (selected) InkBlack else InkWhite, shape)
-            .hardClickable(onClick)
-            .padding(8.dp),
-    ) {
-        Canvas(Modifier.size(20.dp)) {
-            val c = if (selected) InkWhite else InkBlack
-            val r = size.minDimension / 2f
-            drawCircle(c, radius = r - 1f, style = Stroke(width = 2f))
-            drawLine(c, center, center + Offset(0f, -r * 0.55f), strokeWidth = 2f)
-            drawLine(c, center, center + Offset(r * 0.4f, r * 0.12f), strokeWidth = 2f)
-        }
+private fun CalendarButton(selected: Boolean, onClick: () -> Unit) =
+    GlyphButton(selected, onClick) { c ->
+        val w = size.width
+        val h = size.height
+        val bodyTop = h * 0.18f
+        drawRoundRect(
+            color = c,
+            topLeft = Offset(w * 0.05f, bodyTop),
+            size = Size(w * 0.9f, h - bodyTop - 1f),
+            cornerRadius = CornerRadius(3f, 3f),
+            style = Stroke(width = 2f),
+        )
+        // Header rule under the top edge.
+        val ruleY = bodyTop + h * 0.2f
+        drawLine(c, Offset(w * 0.05f, ruleY), Offset(w * 0.95f, ruleY), strokeWidth = 2f)
+        // Binding ticks above the body.
+        drawLine(c, Offset(w * 0.32f, 0f), Offset(w * 0.32f, bodyTop + 2f), strokeWidth = 2f)
+        drawLine(c, Offset(w * 0.68f, 0f), Offset(w * 0.68f, bodyTop + 2f), strokeWidth = 2f)
     }
-}
+
+@Composable
+private fun ClockButton(selected: Boolean, onClick: () -> Unit) =
+    GlyphButton(selected, onClick) { c ->
+        val r = size.minDimension / 2f
+        drawCircle(c, radius = r - 1f, style = Stroke(width = 2f))
+        drawLine(c, center, center + Offset(0f, -r * 0.55f), strokeWidth = 2f)
+        drawLine(c, center, center + Offset(r * 0.4f, r * 0.12f), strokeWidth = 2f)
+    }

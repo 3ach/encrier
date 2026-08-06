@@ -4,8 +4,11 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.lightColorScheme
@@ -14,8 +17,11 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.composed
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 
@@ -74,5 +80,60 @@ fun HardButton(
             .background(if (selected) InkBlack else InkWhite, shape)
             .hardClickable(onClick)
             .padding(horizontal = 14.dp, vertical = 9.dp),
+    )
+}
+
+/** The notebook card chrome: white fill, black hairline border, padded. */
+fun Modifier.notebookCard(pad: Dp = 14.dp): Modifier {
+    val shape = RoundedCornerShape(10.dp)
+    return background(InkWhite, shape)
+        .border(1.5.dp, InkBlack, shape)
+        .padding(pad)
+}
+
+/** Quiet single-line keyboard field: serif text, margin-gray hairline. */
+@Composable
+fun QuietField(
+    value: String,
+    onValueChange: (String) -> Unit,
+    placeholder: String,
+    modifier: Modifier = Modifier,
+) {
+    val shape = RoundedCornerShape(8.dp)
+    BasicTextField(
+        value = value,
+        onValueChange = onValueChange,
+        singleLine = true,
+        textStyle = TextStyle(fontFamily = Serif, fontSize = 15.sp, color = InkBlack),
+        cursorBrush = SolidColor(InkBlack),
+        decorationBox = { inner ->
+            Box {
+                if (value.isEmpty()) {
+                    Text(placeholder, fontFamily = Serif, fontSize = 15.sp, color = InkGray)
+                }
+                inner()
+            }
+        },
+        modifier = modifier
+            .background(InkWhite, shape)
+            .border(1.dp, InkMargin, shape)
+            .padding(horizontal = 10.dp, vertical = 9.dp),
+    )
+}
+
+/** Full-width serif list row; selection inverts it. */
+@Composable
+fun SelectableRow(label: String, selected: Boolean, onClick: () -> Unit) {
+    val shape = RoundedCornerShape(8.dp)
+    Text(
+        label,
+        fontFamily = Serif,
+        fontSize = 15.sp,
+        color = if (selected) InkWhite else InkBlack,
+        modifier = Modifier
+            .fillMaxWidth()
+            .background(if (selected) InkBlack else InkWhite, shape)
+            .hardClickable(onClick)
+            .padding(horizontal = 10.dp, vertical = 8.dp),
     )
 }
