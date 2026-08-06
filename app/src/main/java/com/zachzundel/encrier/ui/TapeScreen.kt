@@ -29,6 +29,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.PathEffect
@@ -140,6 +141,7 @@ fun TapeScreen(vm: TapeViewModel) {
         Canvas(
             Modifier
                 .fillMaxSize()
+                .clipToBounds()
                 .onSizeChanged {
                     viewportH = it.height.toFloat()
                     vm.tapeWidthPx = it.width.toFloat()

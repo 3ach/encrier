@@ -57,6 +57,11 @@ data class LineRow(
 interface TapeDao {
     @Insert suspend fun insertLine(l: LineEntity): Long
     @Query("DELETE FROM lines WHERE id = :id") suspend fun deleteLine(id: Long)
+    @Query(
+        "DELETE FROM lines WHERE id NOT IN (SELECT DISTINCT lineId FROM strokes) " +
+            "AND id NOT IN (SELECT lineId FROM items)"
+    )
+    suspend fun gcEmptyLines()
     @Query("SELECT MAX(seq) FROM lines") suspend fun maxSeq(): Double?
 
     @Query(

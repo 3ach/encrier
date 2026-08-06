@@ -94,6 +94,12 @@ class TapeViewModel : ViewModel() {
     private var idleJob: Job? = null
     private val mutex = Mutex()
 
+    init {
+        // Startup GC: lines with neither ink nor an item are invisible slots
+        // left by gap-creation or interrupted sessions.
+        viewModelScope.launch { mutex.withLock { dao.gcEmptyLines() } }
+    }
+
     fun loadVisible(lineIds: List<Long>) {
         val missing = lineIds.filter { it !in _strokeCache.value }
         if (missing.isEmpty()) return
