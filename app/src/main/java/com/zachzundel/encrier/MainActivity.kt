@@ -27,7 +27,6 @@ import androidx.compose.runtime.getValue
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.layout.size
 import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
@@ -70,14 +69,13 @@ class MainActivity : ComponentActivity() {
 @Composable
 private fun AppRoot() {
     val state by Graph.recognition.state.collectAsState()
-    val scope = rememberCoroutineScope()
-    LaunchedEffect(Unit) { Graph.recognition.ensureModel(this) }
+    LaunchedEffect(Unit) { Graph.recognition.ensureModel() }
     when (val s = state) {
         Recognition.ModelState.Ready -> Tabs()
         Recognition.ModelState.Checking -> BlockingScreen("checking recognition model…")
         Recognition.ModelState.Downloading -> BlockingScreen("downloading recognition model…")
         is Recognition.ModelState.Failed -> BlockingScreen("model download failed:\n${s.message}") {
-            HardButton("retry", onClick = { Graph.recognition.ensureModel(scope) })
+            HardButton("retry", onClick = { Graph.recognition.ensureModel() })
         }
     }
 }
@@ -286,7 +284,7 @@ private fun DatePickerCard(
             )
         }
         for ((date, lineId) in dates) {
-            val ts = date.atStartOfDay(java.time.ZoneId.systemDefault()).toInstant().toEpochMilli()
+            val ts = date.atStartOfDay(com.zachzundel.encrier.data.TAPE_ZONE).toInstant().toEpochMilli()
             Text(
                 dayMarkerLabel(ts).lowercase(),
                 fontFamily = com.zachzundel.encrier.ui.Serif,

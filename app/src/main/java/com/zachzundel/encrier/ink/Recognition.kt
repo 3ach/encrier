@@ -10,7 +10,10 @@ import com.google.mlkit.vision.digitalink.Ink
 import com.google.mlkit.vision.digitalink.RecognitionContext
 import com.google.mlkit.vision.digitalink.WritingArea
 import com.zachzundel.encrier.data.InkPoint
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.tasks.await
@@ -23,6 +26,9 @@ class Recognition {
         data class Failed(val message: String) : ModelState
     }
 
+    // App-lifetime scope: the model download must not die with a composable.
+    private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
+
     private val model =
         DigitalInkRecognitionModel.builder(DigitalInkRecognitionModelIdentifier.EN_US).build()
     private val recognizer by lazy {
@@ -31,7 +37,7 @@ class Recognition {
 
     val state = MutableStateFlow<ModelState>(ModelState.Checking)
 
-    fun ensureModel(scope: CoroutineScope) {
+    fun ensureModel() {
         if (state.value == ModelState.Ready) return
         scope.launch {
             state.value = ModelState.Checking
@@ -42,6 +48,8 @@ class Recognition {
                     mgr.download(model, DownloadConditions.Builder().build()).await()
                 }
                 state.value = ModelState.Ready
+            } catch (e: CancellationException) {
+                throw e
             } catch (e: Exception) {
                 state.value = ModelState.Failed(e.message ?: "unknown error")
             }
