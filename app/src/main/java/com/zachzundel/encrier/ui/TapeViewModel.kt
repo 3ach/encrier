@@ -295,6 +295,29 @@ class TapeViewModel : ViewModel() {
         _panelLineId.value = null
     }
 
+    /** A stroke written inside the panel's ink box, already in line coordinates. */
+    fun appendInkTo(lineId: Long, rel: List<InkPoint>) {
+        if (rel.isEmpty()) return
+        viewModelScope.launch {
+            mutex.withLock {
+                ensureLoaded(lineId)
+                val ord = dao.maxOrd(lineId) + 1
+                dao.insertStroke(
+                    StrokeEntity(
+                        lineId = lineId,
+                        ord = ord,
+                        pointsJson = encodePoints(rel),
+                        addedAt = System.currentTimeMillis(),
+                    )
+                )
+                _strokeCache.update { it + (lineId to it[lineId].orEmpty() + RenderStroke(rel)) }
+                dirty += lineId
+                _uncommitted.update { it + lineId }
+                scheduleIdleCommit()
+            }
+        }
+    }
+
     fun markDone(lineId: Long) = panelAction(lineId) {
         it.copy(status = ItemEntity.DONE, completedAt = System.currentTimeMillis())
     }

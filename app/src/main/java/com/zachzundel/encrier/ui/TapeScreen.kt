@@ -370,35 +370,68 @@ fun TapeScreen(vm: TapeViewModel) {
 @Composable
 private fun ItemPanel(vm: TapeViewModel, panel: TapeViewModel.Panel, modifier: Modifier) {
     val item = panel.item
+    val cardShape = androidx.compose.foundation.shape.RoundedCornerShape(10.dp)
+    val fieldShape = androidx.compose.foundation.shape.RoundedCornerShape(8.dp)
+    var suggestionsOpen by remember(item.lineId) { mutableStateOf(false) }
     Column(
         modifier
-            .background(InkWhite)
-            .border(2.dp, InkBlack)
-            .padding(12.dp)
+            .background(InkWhite, cardShape)
+            .border(1.5.dp, InkBlack, cardShape)
+            .padding(14.dp)
             .verticalScroll(rememberScrollState()),
-        verticalArrangement = Arrangement.spacedBy(8.dp),
+        verticalArrangement = Arrangement.spacedBy(10.dp),
     ) {
-        InkPreview(panel.strokes, Modifier.fillMaxWidth().height(64.dp))
-        Text(
-            "written " + shortDate(item.createdAt),
-            fontFamily = Mono,
-            fontSize = 11.sp,
-            color = InkGray,
-        )
-        for (candidate in decodeCandidates(item.candidatesJson)) {
-            HardButton(
-                label = candidate,
-                modifier = Modifier.fillMaxWidth(),
-                selected = candidate == item.text,
-                onClick = { vm.chooseCandidate(item.lineId, candidate) },
+        androidx.compose.runtime.key(item.lineId) {
+            WritableInkPreview(
+                strokes = panel.strokes,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(88.dp)
+                    .border(1.dp, InkMargin, fieldShape),
+                onStroke = { vm.appendInkTo(item.lineId, it) },
             )
         }
         Text(
-            "none right? amend the ink on the tape",
-            fontFamily = Mono,
-            fontSize = 11.sp,
+            "written " + shortDate(item.createdAt).lowercase() +
+                " — write in the box to amend",
+            fontFamily = Serif,
+            fontStyle = androidx.compose.ui.text.font.FontStyle.Italic,
+            fontSize = 12.sp,
             color = InkGray,
         )
+        // Suggestions as a collapsed dropdown.
+        Column(Modifier.fillMaxWidth().border(1.dp, InkMargin, fieldShape).padding(2.dp)) {
+            Row(
+                Modifier.fillMaxWidth().hardClickable { suggestionsOpen = !suggestionsOpen }
+                    .padding(horizontal = 10.dp, vertical = 8.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Text(
+                    item.text,
+                    fontFamily = Serif,
+                    fontSize = 15.sp,
+                    color = InkBlack,
+                    modifier = Modifier.weight(1f),
+                )
+                Text(if (suggestionsOpen) "▴" else "▾", color = InkGray, fontSize = 13.sp)
+            }
+            if (suggestionsOpen) {
+                for (candidate in decodeCandidates(item.candidatesJson)) {
+                    val selected = candidate == item.text
+                    Text(
+                        candidate,
+                        fontFamily = Serif,
+                        fontSize = 15.sp,
+                        color = if (selected) InkWhite else InkBlack,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .background(if (selected) InkBlack else InkWhite, fieldShape)
+                            .hardClickable { vm.chooseCandidate(item.lineId, candidate) }
+                            .padding(horizontal = 10.dp, vertical = 8.dp),
+                    )
+                }
+            }
+        }
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             if (item.status == ItemEntity.OPEN) {
                 HardButton("done", onClick = { vm.markDone(item.lineId) })
