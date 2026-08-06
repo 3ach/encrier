@@ -166,9 +166,10 @@ class TapeViewModel : ViewModel() {
 
         // Strike-out → DONE; scribble-out → DELETE. Neither stores ink. Tight
         // rows make the start point unreliable (a scribble often starts above
-        // the band), so test the start row AND the centroid row.
+        // the band), so test the start row AND the centroid row. Never fires
+        // for ink-revealed strokes — writing over revealed ink is amendment.
         val centroidY = (points.sumOf { it.y.toDouble() } / points.size).toFloat()
-        for (s in setOf(startSlot, layout.slotAt(centroidY))) {
+        for (s in if (inkRevealed) emptySet() else setOf(startSlot, layout.slotAt(centroidY))) {
             val row = rowsNow.getOrNull(s) ?: continue
             val item = row.item ?: continue
             if (row.line.id in _uncommitted.value) continue
@@ -184,8 +185,8 @@ class TapeViewModel : ViewModel() {
             if (Tunables.GESTURE_DEBUG && v.kind == RowMarks.Kind.NONE) {
                 Log.i(
                     "MarksDebug",
-                    "slot=$s none (${v.reason}): cover=%.2f hf=%.2f rev=%d"
-                        .format(v.cover, v.heightFrac, v.reversals)
+                    "slot=$s none (${v.reason}): cover=%.2f hf=%.2f xRev=%d yRev=%d"
+                        .format(v.cover, v.heightFrac, v.xReversals, v.yReversals)
                 )
             }
             when (v.kind) {

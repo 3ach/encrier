@@ -46,6 +46,28 @@ class RowMarksTest {
     }
 
     @Test
+    fun `sawtooth scribble (vertical zigzag sweeping right) is a scribble`() {
+        // Zach's real scribble style: x monotonic, y reversing rapidly.
+        val pts = mutableListOf<InkPoint>()
+        var t = 0L
+        var x = 30f
+        for (tooth in 0 until 10) {
+            val yFrom = if (tooth % 2 == 0) 20f else 65f
+            val yTo = if (tooth % 2 == 0) 65f else 20f
+            for (i in 0 until 6) {
+                val f = i / 5f
+                pts.add(InkPoint(x, yFrom + (yTo - yFrom) * f, t))
+                x += 7f
+                t += 10
+            }
+        }
+        assertEquals(
+            RowMarks.Kind.SCRIBBLE,
+            RowMarks.classify(pts, rowTop, lh, lh, textX0, textX1).kind,
+        )
+    }
+
+    @Test
     fun `diagonal stroke is neither`() {
         val stroke = line(30f, 10f, 400f, 85f)
         assertEquals(RowMarks.Kind.NONE, RowMarks.classify(stroke, rowTop, lh, lh, textX0, textX1).kind)

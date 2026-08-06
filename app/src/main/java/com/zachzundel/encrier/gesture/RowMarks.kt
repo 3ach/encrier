@@ -17,7 +17,8 @@ object RowMarks {
         val kind: Kind,
         val cover: Float,
         val heightFrac: Float,
-        val reversals: Int,
+        val xReversals: Int,
+        val yReversals: Int,
         val reason: String,
     )
 
@@ -29,7 +30,7 @@ object RowMarks {
         textX0: Float,
         textX1: Float,
     ): Verdict {
-        if (points.size < 2) return Verdict(Kind.NONE, 0f, 0f, 0, "too few points")
+        if (points.size < 2) return Verdict(Kind.NONE, 0f, 0f, 0, 0, "too few points")
         var minX = Float.MAX_VALUE
         var maxX = -Float.MAX_VALUE
         var minY = Float.MAX_VALUE
@@ -43,7 +44,10 @@ object RowMarks {
         val textW = max(1f, textX1 - textX0)
         val cover = max(0f, min(maxX, textX1) - max(minX, textX0)) / textW
         val heightFrac = (maxY - minY) / writeLh
-        val reversals = horizontalReversals(points)
+        // A scribble can zigzag horizontally OR be a sawtooth: rapid vertical
+        // reversals while sweeping rightward. Count both axes.
+        val xRev = reversals(points) { it.x }
+        val yRev = reversals(points) { it.y }
 
         // Must stay near the row band; wobble tolerance scales with the
         // WRITING line height, not the (possibly tight) row height.
@@ -52,26 +56,26 @@ object RowMarks {
         val kind = when {
             !inBand -> Kind.NONE
             cover >= Tunables.SCRIBBLE_MIN_COVER &&
-                reversals >= Tunables.SCRIBBLE_MIN_REVERSALS -> Kind.SCRIBBLE
+                max(xRev, yRev) >= Tunables.SCRIBBLE_MIN_REVERSALS -> Kind.SCRIBBLE
             cover >= Tunables.STRIKE_MIN_COVER &&
                 heightFrac <= Tunables.STRIKE_MAX_HEIGHT_FRAC &&
-                reversals <= 1 -> Kind.STRIKE
+                xRev <= 1 -> Kind.STRIKE
             else -> Kind.NONE
         }
         val reason = if (!inBand) "outside row band" else "thresholds"
-        return Verdict(kind, cover, heightFrac, reversals, reason)
+        return Verdict(kind, cover, heightFrac, xRev, yRev, reason)
     }
 
-    private fun horizontalReversals(points: List<InkPoint>): Int {
-        var reversals = 0
+    private inline fun reversals(points: List<InkPoint>, axis: (InkPoint) -> Float): Int {
+        var count = 0
         var lastSign = 0
         for (i in 1 until points.size) {
-            val dx = points[i].x - points[i - 1].x
-            if (abs(dx) < 2f) continue
-            val sign = if (dx > 0) 1 else -1
-            if (lastSign != 0 && sign != lastSign) reversals++
+            val d = axis(points[i]) - axis(points[i - 1])
+            if (abs(d) < 2f) continue
+            val sign = if (d > 0) 1 else -1
+            if (lastSign != 0 && sign != lastSign) count++
             lastSign = sign
         }
-        return reversals
+        return count
     }
 }
