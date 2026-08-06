@@ -54,11 +54,10 @@ import androidx.compose.ui.unit.sp
 import com.zachzundel.encrier.Tunables
 import com.zachzundel.encrier.data.InkPoint
 import com.zachzundel.encrier.data.ItemEntity
+import com.zachzundel.encrier.data.TAPE_ZONE
 import com.zachzundel.encrier.data.dayMarkerLabel
 import com.zachzundel.encrier.data.decodeCandidates
-import com.zachzundel.encrier.data.localDate
 import com.zachzundel.encrier.data.shortDate
-import java.time.LocalDate
 import kotlin.math.abs
 
 private const val TOUCH_TAP_SLOP_PX = 12f
@@ -94,17 +93,8 @@ fun TapeScreen(vm: TapeViewModel) {
 
     // Day markers derived at render time from data (spec §3).
     val dayMarkers: Map<Int, String> = remember(rows) {
-        val markers = mutableMapOf<Int, String>()
-        var lastDate: LocalDate? = null
-        for ((i, row) in rows.withIndex()) {
-            val ts = row.line.firstInkAt ?: continue
-            val d = localDate(ts)
-            if (d != lastDate) {
-                markers[i] = dayMarkerLabel(ts)
-                lastDate = d
-            }
-        }
-        markers
+        dayMarkerSlots(rows.map { DatedRow(it.line.id, it.line.firstInkAt) }, TAPE_ZONE)
+            .mapValues { (_, ts) -> dayMarkerLabel(ts) }
     }
 
     // Child completion ratios for parent rows.
@@ -119,6 +109,7 @@ fun TapeScreen(vm: TapeViewModel) {
     val layout = run {
         val tops = FloatArray(rows.size)
         val heights = FloatArray(rows.size)
+        val lineIds = LongArray(rows.size)
         var y = 0f
         for ((i, row) in rows.withIndex()) {
             val pending = row.line.id in uncommitted
@@ -129,9 +120,10 @@ fun TapeScreen(vm: TapeViewModel) {
             if (!grownInk && dayMarkers.containsKey(i)) h += markerPx
             tops[i] = y
             heights[i] = h
+            lineIds[i] = row.line.id
             y += h
         }
-        RowLayout(tops, heights, lh)
+        RowLayout(tops, heights, lh, lineIds)
     }
     val layoutState = rememberUpdatedState(layout)
 

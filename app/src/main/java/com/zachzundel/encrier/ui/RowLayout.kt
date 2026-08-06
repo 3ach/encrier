@@ -5,11 +5,14 @@ package com.zachzundel.encrier.ui
  * rows are full writing height. Slots at or past the end of the rows are
  * writing-height blanks. Shared by rendering and stroke routing so both agree
  * on the y ↔ row mapping; a stroke carries the layout it was captured under.
+ * [lineIds] binds each slot to the line it showed at capture time, so stroke
+ * routing survives rows moving under the pen.
  */
 class RowLayout(
     val tops: FloatArray,
     val heights: FloatArray,
     val writeLh: Float,
+    val lineIds: LongArray,
 ) {
     val end: Float
         get() = if (tops.isEmpty()) 0f else tops[tops.size - 1] + heights[heights.size - 1]
