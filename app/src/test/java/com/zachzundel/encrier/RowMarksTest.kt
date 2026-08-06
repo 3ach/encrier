@@ -68,6 +68,29 @@ class RowMarksTest {
     }
 
     @Test
+    fun `densely sampled sawtooth is still a scribble`() {
+        // ~550Hz capture: consecutive samples move ~1px. Reproduces the DC-1
+        // failure where per-sample deltas fell under a naive noise floor.
+        val pts = mutableListOf<InkPoint>()
+        var t = 0L
+        var x = 30f
+        for (tooth in 0 until 10) {
+            val yFrom = if (tooth % 2 == 0) 20f else 65f
+            val yTo = if (tooth % 2 == 0) 65f else 20f
+            for (i in 0 until 45) {
+                val f = i / 44f
+                pts.add(InkPoint(x, yFrom + (yTo - yFrom) * f, t))
+                x += 0.9f
+                t += 2
+            }
+        }
+        assertEquals(
+            RowMarks.Kind.SCRIBBLE,
+            RowMarks.classify(pts, rowTop, lh, lh, textX0, textX1).kind,
+        )
+    }
+
+    @Test
     fun `diagonal stroke is neither`() {
         val stroke = line(30f, 10f, 400f, 85f)
         assertEquals(RowMarks.Kind.NONE, RowMarks.classify(stroke, rowTop, lh, lh, textX0, textX1).kind)

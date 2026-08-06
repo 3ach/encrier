@@ -45,9 +45,11 @@ object RowMarks {
         val cover = max(0f, min(maxX, textX1) - max(minX, textX0)) / textW
         val heightFrac = (maxY - minY) / writeLh
         // A scribble can zigzag horizontally OR be a sawtooth: rapid vertical
-        // reversals while sweeping rightward. Count both axes.
-        val xRev = reversals(points) { it.x }
-        val yRev = reversals(points) { it.y }
+        // reversals while sweeping rightward. Count both axes. Hysteresis-based
+        // so ~550Hz sampling (sub-pixel per-sample deltas) can't hide reversals.
+        val hys = 0.07f * writeLh
+        val xRev = reversals(points, hys) { it.x }
+        val yRev = reversals(points, hys) { it.y }
 
         // Must stay near the row band; wobble tolerance scales with the
         // WRITING line height, not the (possibly tight) row height.
@@ -66,15 +68,37 @@ object RowMarks {
         return Verdict(kind, cover, heightFrac, xRev, yRev, reason)
     }
 
-    private inline fun reversals(points: List<InkPoint>, axis: (InkPoint) -> Float): Int {
+    /** Direction changes along one axis, with hysteresis: a reversal counts only
+     *  when the trajectory retreats ≥ [hys] from its running extreme. */
+    private inline fun reversals(
+        points: List<InkPoint>,
+        hys: Float,
+        axis: (InkPoint) -> Float,
+    ): Int {
+        if (points.size < 2) return 0
         var count = 0
-        var lastSign = 0
+        var dir = 0
+        var extreme = axis(points[0])
         for (i in 1 until points.size) {
-            val d = axis(points[i]) - axis(points[i - 1])
-            if (abs(d) < 2f) continue
-            val sign = if (d > 0) 1 else -1
-            if (lastSign != 0 && sign != lastSign) count++
-            lastSign = sign
+            val v = axis(points[i])
+            when (dir) {
+                0 -> if (abs(v - extreme) >= hys) {
+                    dir = if (v > extreme) 1 else -1
+                    extreme = v
+                }
+                1 -> if (v > extreme) extreme = v
+                else if (extreme - v >= hys) {
+                    count++
+                    dir = -1
+                    extreme = v
+                }
+                else -> if (v < extreme) extreme = v
+                else if (v - extreme >= hys) {
+                    count++
+                    dir = 1
+                    extreme = v
+                }
+            }
         }
         return count
     }
