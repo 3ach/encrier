@@ -227,6 +227,10 @@ Design changes from v1, in the order they were decided:
 - **Elbow thresholds** recalibrated from real handwriting: drop ≥ 0.35 ×
   lineHeight, run ≥ 36dp and ≥ 0.75 × drop. Reliability still imperfect;
   open item.
+- **Editable item date.** The panel's "written aug 6" caption carries two
+  quiet ◂ ▸ nudges that shift `item.createdAt` by ±1 day (panel stays open
+  and refreshes live). The row's meta date and History follow; the tape's
+  day-marker gutters derive from stroke timestamps and deliberately don't.
 
 Device notes: DC-1 ships `persist.log.tag=I` (Log.d is dropped device-wide);
 its digitizer reports ~550Hz. Do not vary only draw-time attributes

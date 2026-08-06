@@ -433,13 +433,23 @@ private fun ItemPanel(vm: TapeViewModel, panel: TapeViewModel.Panel, modifier: M
                 onErase = { p, r -> vm.eraseAt(item.lineId, p, r) },
             )
         }
-        Text(
-            "written " + shortDate(item.createdAt).lowercase(),
-            fontFamily = Serif,
-            fontStyle = androidx.compose.ui.text.font.FontStyle.Italic,
-            fontSize = 12.sp,
-            color = InkGray,
-        )
+        // Date row: the caption plus quiet nudges to relist the item on another day.
+        Row(
+            Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            Text(
+                "written " + shortDate(item.createdAt).lowercase(),
+                fontFamily = Serif,
+                fontStyle = androidx.compose.ui.text.font.FontStyle.Italic,
+                fontSize = 12.sp,
+                color = InkGray,
+                modifier = Modifier.weight(1f),
+            )
+            DateNudge("◂") { vm.shiftItemDate(item.lineId, -1) }
+            DateNudge("▸") { vm.shiftItemDate(item.lineId, +1) }
+        }
         // Suggestions as a collapsed dropdown.
         Column(Modifier.fillMaxWidth().border(1.dp, InkMargin, fieldShape).padding(2.dp)) {
             Row(
@@ -485,6 +495,23 @@ private fun ItemPanel(vm: TapeViewModel, panel: TapeViewModel.Panel, modifier: M
             HardButton("close", onClick = { vm.closePanel() })
         }
     }
+}
+
+/** A HardButton scaled down to caption weight: margin-gray hairline, no fill. */
+@Composable
+private fun DateNudge(label: String, onClick: () -> Unit) {
+    val shape = androidx.compose.foundation.shape.RoundedCornerShape(7.dp)
+    Text(
+        label,
+        color = InkGray,
+        fontSize = 12.sp,
+        fontFamily = Mono,
+        modifier = Modifier
+            .border(1.dp, InkMargin, shape)
+            .background(InkWhite, shape)
+            .hardClickable(onClick)
+            .padding(horizontal = 9.dp, vertical = 3.dp),
+    )
 }
 
 private fun DrawScope.drawItemRow(
