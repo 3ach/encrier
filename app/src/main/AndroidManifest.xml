@@ -5,6 +5,7 @@
     <uses-permission android:name="android.permission.INTERNET" />
 
     <application
+        android:name=".InkTaskApp"
         android:label="InkTask"
         android:allowBackup="true"
         android:theme="@android:style/Theme.Material.Light.NoActionBar">

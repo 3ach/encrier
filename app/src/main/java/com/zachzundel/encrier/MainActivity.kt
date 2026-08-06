@@ -3,196 +3,111 @@ package com.zachzundel.encrier
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
-import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.background
 import androidx.compose.foundation.border
-import androidx.compose.foundation.gestures.awaitEachGesture
-import androidx.compose.foundation.gestures.awaitFirstDown
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.material3.Button
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateListOf
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
+import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.Path
-import androidx.compose.ui.graphics.drawscope.Stroke
-import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
-import com.google.mlkit.common.model.DownloadConditions
-import com.google.mlkit.common.model.RemoteModelManager
-import com.google.mlkit.vision.digitalink.DigitalInkRecognition
-import com.google.mlkit.vision.digitalink.DigitalInkRecognitionModel
-import com.google.mlkit.vision.digitalink.DigitalInkRecognitionModelIdentifier
-import com.google.mlkit.vision.digitalink.DigitalInkRecognizerOptions
-import com.google.mlkit.vision.digitalink.Ink
+import androidx.compose.ui.unit.sp
+import androidx.lifecycle.viewmodel.compose.viewModel
+import com.zachzundel.encrier.ink.Recognition
+import com.zachzundel.encrier.ui.EncrierTheme
+import com.zachzundel.encrier.ui.HardButton
+import com.zachzundel.encrier.ui.InkBlack
+import com.zachzundel.encrier.ui.InkWhite
+import com.zachzundel.encrier.ui.Mono
+import com.zachzundel.encrier.ui.ReportsScreen
+import com.zachzundel.encrier.ui.ReportsViewModel
+import com.zachzundel.encrier.ui.TapeScreen
+import com.zachzundel.encrier.ui.TapeViewModel
 
-/**
- * Spec §0 validation gates, nothing more:
- *  1. en-US Digital Ink model downloads and recognizes a line on the DC-1.
- *  2. Captured ink is rendered back — judge stroke fidelity by eye; if chunky,
- *     switch capture to MotionEvent with historical points.
- */
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        setContent { SmokeTestScreen() }
+        setContent {
+            EncrierTheme {
+                Box(Modifier.fillMaxSize().background(InkWhite)) { AppRoot() }
+            }
+        }
     }
 }
 
-private class InkStrokePoints {
-    val xs = ArrayList<Float>()
-    val ys = ArrayList<Float>()
-    val ts = ArrayList<Long>()
-}
-
-@OptIn(androidx.compose.ui.ExperimentalComposeUiApi::class)
 @Composable
-private fun SmokeTestScreen() {
-    var modelStatus by remember { mutableStateOf("checking model…") }
-    var modelReady by remember { mutableStateOf(false) }
-    var result by remember { mutableStateOf("") }
-    var strokeStats by remember { mutableStateOf("") }
-    val strokes = remember { mutableStateListOf<InkStrokePoints>() }
-    var redraws by remember { mutableStateOf(0) }
-
-    val model = remember {
-        DigitalInkRecognitionModel.builder(DigitalInkRecognitionModelIdentifier.EN_US).build()
+private fun AppRoot() {
+    val state by Graph.recognition.state.collectAsState()
+    val scope = rememberCoroutineScope()
+    LaunchedEffect(Unit) { Graph.recognition.ensureModel(this) }
+    when (val s = state) {
+        Recognition.ModelState.Ready -> Tabs()
+        Recognition.ModelState.Checking -> BlockingScreen("checking recognition model…")
+        Recognition.ModelState.Downloading -> BlockingScreen("downloading recognition model…")
+        is Recognition.ModelState.Failed -> BlockingScreen("model download failed:\n${s.message}") {
+            HardButton("RETRY", onClick = { Graph.recognition.ensureModel(scope) })
+        }
     }
+}
 
-    LaunchedEffect(Unit) {
-        val manager = RemoteModelManager.getInstance()
-        manager.isModelDownloaded(model)
-            .addOnSuccessListener { downloaded ->
-                if (downloaded) {
-                    modelStatus = "model ready"
-                    modelReady = true
-                } else {
-                    modelStatus = "downloading model…"
-                    manager.download(model, DownloadConditions.Builder().build())
-                        .addOnSuccessListener {
-                            modelStatus = "model ready"
-                            modelReady = true
-                        }
-                        .addOnFailureListener { modelStatus = "download FAILED: ${it.message}" }
-                }
-            }
-            .addOnFailureListener { modelStatus = "model check FAILED: ${it.message}" }
-    }
-
+// App is unusable for conversion until the model is present (spec §4).
+@Composable
+private fun BlockingScreen(message: String, action: (@Composable () -> Unit)? = null) {
     Column(
-        modifier = Modifier.fillMaxSize().padding(16.dp),
-        verticalArrangement = Arrangement.spacedBy(12.dp)
+        Modifier.fillMaxSize().padding(32.dp),
+        verticalArrangement = Arrangement.Center,
+        horizontalAlignment = Alignment.CenterHorizontally,
     ) {
-        Text(modelStatus)
-        Text(strokeStats)
+        Text(message, fontFamily = Mono, fontSize = 14.sp, textAlign = TextAlign.Center)
+        if (action != null) {
+            Spacer(Modifier.height(24.dp))
+            action()
+        }
+    }
+}
 
-        Canvas(
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(240.dp)
-                .border(2.dp, Color.Black)
-                .pointerInput(Unit) {
-                    awaitEachGesture {
-                        // No drag detector: it waits for touch slop, which delays
-                        // stroke start and coalesces the first points. Capture raw
-                        // from first down, including historical (inter-frame) samples.
-                        val down = awaitFirstDown()
-                        down.consume()
-                        val stroke = InkStrokePoints().apply {
-                            xs.add(down.position.x); ys.add(down.position.y)
-                            ts.add(down.uptimeMillis)
-                        }
-                        strokes.add(stroke)
-                        redraws++
-                        while (true) {
-                            val event = awaitPointerEvent()
-                            val change = event.changes.firstOrNull { it.id == down.id } ?: break
-                            for (h in change.historical) {
-                                stroke.xs.add(h.position.x); stroke.ys.add(h.position.y)
-                                stroke.ts.add(h.uptimeMillis)
-                            }
-                            if (change.pressed) {
-                                stroke.xs.add(change.position.x); stroke.ys.add(change.position.y)
-                                stroke.ts.add(change.uptimeMillis)
-                            }
-                            change.consume()
-                            redraws++
-                            if (!change.pressed) break
-                        }
-                        if (stroke.ts.size >= 2) {
-                            val durMs = stroke.ts.last() - stroke.ts.first()
-                            val hz = if (durMs > 0) stroke.ts.size * 1000f / durMs else 0f
-                            var maxGap = 0L
-                            for (i in 1 until stroke.ts.size) {
-                                maxGap = maxOf(maxGap, stroke.ts[i] - stroke.ts[i - 1])
-                            }
-                            strokeStats =
-                                "last stroke: ${stroke.ts.size} pts / ${durMs}ms = " +
-                                    "%.0f Hz, max gap ${maxGap}ms".format(hz)
-                        }
-                    }
-                }
-        ) {
-            redraws // read so new points trigger a redraw
-            for (s in strokes) {
-                if (s.xs.isEmpty()) continue
-                val path = Path().apply {
-                    moveTo(s.xs[0], s.ys[0])
-                    for (i in 1 until s.xs.size) lineTo(s.xs[i], s.ys[i])
-                }
-                drawPath(path, Color.Black, style = Stroke(width = 3f))
+@Composable
+private fun Tabs() {
+    var tab by rememberSaveable { mutableIntStateOf(0) }
+    Column(Modifier.fillMaxSize()) {
+        Box(Modifier.weight(1f)) {
+            when (tab) {
+                0 -> TapeScreen(viewModel<TapeViewModel>())
+                else -> ReportsScreen(viewModel<ReportsViewModel>())
             }
         }
-
-        Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-            Button(
-                enabled = modelReady && strokes.isNotEmpty(),
-                onClick = {
-                    for ((i, s) in strokes.withIndex()) {
-                        val dur = if (s.ts.size >= 2) s.ts.last() - s.ts.first() else 0
-                        val gap = if (i > 0) s.ts.first() - strokes[i - 1].ts.last() else 0
-                        // Log.i, not .d: DC-1 sets persist.log.tag=I, dropping debug logs
-                        android.util.Log.i(
-                            "InkSmoke",
-                            "stroke[$i]: ${s.ts.size} pts, dur=${dur}ms, " +
-                                "gapFromPrev=${gap}ms, t0=${s.ts.first()}"
-                        )
-                    }
-                    val inkBuilder = Ink.builder()
-                    for (s in strokes) {
-                        val sb = Ink.Stroke.builder()
-                        for (i in s.xs.indices) {
-                            sb.addPoint(Ink.Point.create(s.xs[i], s.ys[i], s.ts[i]))
-                        }
-                        inkBuilder.addStroke(sb.build())
-                    }
-                    result = "recognizing…"
-                    DigitalInkRecognition.getClient(
-                        DigitalInkRecognizerOptions.builder(model).build()
-                    )
-                        .recognize(inkBuilder.build())
-                        .addOnSuccessListener { r ->
-                            result = r.candidates.joinToString("\n") { it.text }
-                        }
-                        .addOnFailureListener { result = "recognition FAILED: ${it.message}" }
-                }
-            ) { Text("Recognize") }
-
-            Button(onClick = { strokes.clear(); result = ""; redraws++ }) { Text("Clear") }
+        Row(Modifier.fillMaxWidth().border(2.dp, InkBlack)) {
+            for ((i, label) in listOf("WRITE", "REPORTS").withIndex()) {
+                Text(
+                    label,
+                    fontFamily = Mono,
+                    fontSize = 14.sp,
+                    textAlign = TextAlign.Center,
+                    color = if (tab == i) InkWhite else InkBlack,
+                    modifier = Modifier
+                        .weight(1f)
+                        .background(if (tab == i) InkBlack else InkWhite)
+                        .clickable { tab = i }
+                        .padding(vertical = 14.dp),
+                )
+            }
         }
-
-        Text(result)
     }
 }
