@@ -9,6 +9,8 @@ import androidx.room.PrimaryKey
 import androidx.room.Query
 import androidx.room.RoomDatabase
 import androidx.room.Update
+import androidx.room.migration.Migration
+import androidx.sqlite.db.SupportSQLiteDatabase
 import kotlinx.coroutines.flow.Flow
 
 @Entity(tableName = "tapes")
@@ -148,4 +150,25 @@ interface TapeDao {
 )
 abstract class InkDb : RoomDatabase() {
     abstract fun dao(): TapeDao
+
+    companion object {
+        val MIGRATION_1_2 = object : Migration(1, 2) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL(
+                    "CREATE TABLE IF NOT EXISTS tapes (" +
+                        "id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, " +
+                        "name TEXT NOT NULL, createdAt INTEGER NOT NULL)"
+                )
+                db.execSQL("INSERT INTO tapes (id, name, createdAt) VALUES (1, 'default', 0)")
+                db.execSQL("ALTER TABLE lines ADD COLUMN tapeId INTEGER NOT NULL DEFAULT 1")
+                db.execSQL(
+                    "CREATE TABLE IF NOT EXISTS corrections (" +
+                        "id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, " +
+                        "lineId INTEGER NOT NULL, strokesJson TEXT NOT NULL, " +
+                        "candidatesJson TEXT NOT NULL, correctedText TEXT NOT NULL, " +
+                        "createdAt INTEGER NOT NULL)"
+                )
+            }
+        }
+    }
 }

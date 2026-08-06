@@ -4,6 +4,7 @@ import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.zachzundel.encrier.Graph
+import com.zachzundel.encrier.TapeSession
 import com.zachzundel.encrier.Tunables
 import com.zachzundel.encrier.data.CorrectionEntity
 import com.zachzundel.encrier.data.InkPoint

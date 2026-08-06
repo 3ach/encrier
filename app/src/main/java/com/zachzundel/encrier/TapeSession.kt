@@ -1,4 +1,4 @@
-package com.zachzundel.encrier.ui
+package com.zachzundel.encrier
 
 import android.content.Context
 import android.content.SharedPreferences

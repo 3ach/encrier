@@ -24,6 +24,7 @@ import androidx.compose.ui.unit.sp
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.zachzundel.encrier.Graph
+import com.zachzundel.encrier.TapeSession
 import com.zachzundel.encrier.data.ItemEntity
 import com.zachzundel.encrier.data.TapeDao
 import com.zachzundel.encrier.data.shortDate
