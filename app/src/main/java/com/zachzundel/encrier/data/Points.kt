@@ -25,6 +25,14 @@ fun decodePoints(json: String): List<InkPoint> {
     }
 }
 
+fun encodeStrokes(strokes: List<List<InkPoint>>): String =
+    JSONArray().also { arr -> strokes.forEach { arr.put(JSONArray(encodePoints(it))) } }.toString()
+
+fun decodeStrokes(json: String): List<List<InkPoint>> {
+    val arr = JSONArray(json)
+    return List(arr.length()) { i -> decodePoints(arr.getJSONArray(i).toString()) }
+}
+
 fun encodeCandidates(candidates: List<String>): String =
     JSONArray().also { arr -> candidates.forEach(arr::put) }.toString()
 

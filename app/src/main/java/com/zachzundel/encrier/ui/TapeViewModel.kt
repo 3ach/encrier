@@ -73,7 +73,7 @@ class TapeViewModel : ViewModel() {
     private val _panelLineId = MutableStateFlow<Long?>(null)
 
     val rows: StateFlow<List<TapeRow>> =
-        combine(dao.observeLines(), dao.observeItems(), pendingParent) { lines, items, pending ->
+        combine(dao.observeLines(com.zachzundel.encrier.data.TapeEntity.DEFAULT_ID), dao.observeItems(), pendingParent) { lines, items, pending ->
             val byLine = items.associateBy { it.lineId }
             lines.map { TapeRow(it, byLine[it.id], pending.containsKey(it.id)) }
         }.stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
@@ -225,7 +225,7 @@ class TapeViewModel : ViewModel() {
         } else {
             // Create lines for every empty slot up to the written one so ink
             // stays exactly where it was written.
-            var seq = dao.maxSeq() ?: 0.0
+            var seq = dao.maxSeq(com.zachzundel.encrier.data.TapeEntity.DEFAULT_ID) ?: 0.0
             var lastId = -1L
             for (s in rowsNow.size..slot) {
                 seq += 1.0

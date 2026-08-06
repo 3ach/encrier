@@ -11,10 +11,33 @@ import androidx.room.RoomDatabase
 import androidx.room.Update
 import kotlinx.coroutines.flow.Flow
 
+@Entity(tableName = "tapes")
+data class TapeEntity(
+    @PrimaryKey(autoGenerate = true) val id: Long = 0,
+    val name: String,
+    val createdAt: Long,
+) {
+    companion object {
+        const val DEFAULT_ID = 1L
+    }
+}
+
 @Entity(tableName = "lines")
 data class LineEntity(
     @PrimaryKey(autoGenerate = true) val id: Long = 0,
     val seq: Double,       // fractional ordering; insert = midpoint
+    val createdAt: Long,
+    @androidx.room.ColumnInfo(defaultValue = "1") val tapeId: Long = TapeEntity.DEFAULT_ID,
+)
+
+/** A human-corrected recognition: ink + what the model offered + the truth. */
+@Entity(tableName = "corrections")
+data class CorrectionEntity(
+    @PrimaryKey(autoGenerate = true) val id: Long = 0,
+    val lineId: Long,
+    val strokesJson: String,    // full ink snapshot at correction time
+    val candidatesJson: String, // what recognition offered
+    val correctedText: String,  // what the user said it should be
     val createdAt: Long,
 )
 
@@ -62,14 +85,27 @@ interface TapeDao {
             "AND id NOT IN (SELECT lineId FROM items)"
     )
     suspend fun gcEmptyLines()
-    @Query("SELECT MAX(seq) FROM lines") suspend fun maxSeq(): Double?
+    @Query("SELECT MAX(seq) FROM lines WHERE tapeId = :tapeId")
+    suspend fun maxSeq(tapeId: Long): Double?
 
     @Query(
         "SELECT l.id, l.seq, l.createdAt, " +
             "(SELECT MIN(s.addedAt) FROM strokes s WHERE s.lineId = l.id) AS firstInkAt " +
-            "FROM lines l ORDER BY l.seq"
+            "FROM lines l WHERE l.tapeId = :tapeId ORDER BY l.seq"
     )
-    fun observeLines(): Flow<List<LineRow>>
+    fun observeLines(tapeId: Long): Flow<List<LineRow>>
+
+    @Query("SELECT * FROM tapes ORDER BY createdAt")
+    fun observeTapes(): Flow<List<TapeEntity>>
+    @Insert suspend fun insertTape(t: TapeEntity): Long
+
+    @Insert suspend fun insertCorrection(c: CorrectionEntity): Long
+
+    @Query(
+        "SELECT i.* FROM items i JOIN lines l ON l.id = i.lineId " +
+            "WHERE l.tapeId = :tapeId"
+    )
+    fun observeItemsForTape(tapeId: Long): Flow<List<ItemEntity>>
 
     @Insert suspend fun insertStroke(s: StrokeEntity): Long
     @Query("DELETE FROM strokes WHERE id = :id") suspend fun deleteStroke(id: Long)
@@ -92,8 +128,14 @@ interface TapeDao {
 }
 
 @Database(
-    entities = [LineEntity::class, StrokeEntity::class, ItemEntity::class],
-    version = 1,
+    entities = [
+        TapeEntity::class,
+        LineEntity::class,
+        StrokeEntity::class,
+        ItemEntity::class,
+        CorrectionEntity::class,
+    ],
+    version = 2,
     exportSchema = false,
 )
 abstract class InkDb : RoomDatabase() {
