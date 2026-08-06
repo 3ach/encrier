@@ -14,12 +14,10 @@ import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.input.pointer.PointerType
 import androidx.compose.ui.input.pointer.changedToDown
+import androidx.compose.ui.input.pointer.motionEventSpy
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.unit.IntSize
-import androidx.compose.ui.input.pointer.isPrimaryPressed
-import androidx.compose.ui.input.pointer.isSecondaryPressed
-import androidx.compose.ui.input.pointer.isTertiaryPressed
 import androidx.compose.ui.unit.dp
 import com.zachzundel.encrier.Tunables
 import com.zachzundel.encrier.data.InkPoint
@@ -47,6 +45,7 @@ fun WritableInkPreview(
     onErase: (InkPoint, Float) -> Unit,
 ) {
     var boxSize by remember { mutableStateOf(IntSize.Zero) }
+    val barrelHeld = remember { mutableStateOf(false) }
     var xform by remember { mutableStateOf<InkXform?>(null) }
     val active = remember { mutableStateListOf<InkPoint>() } // box coords
     // Finished strokes (line coords) kept locally until the stored copies come
@@ -89,6 +88,7 @@ fun WritableInkPreview(
         modifier
             .clipToBounds()
             .onSizeChanged { boxSize = it }
+            .motionEventSpy { ev -> barrelHeld.value = isBarrelButtonState(ev.buttonState) }
             .pointerInput(Unit) {
                 awaitPointerEventScope {
                     while (true) {
@@ -100,13 +100,10 @@ fun WritableInkPreview(
                         down.consume()
                         android.util.Log.i(
                             "EraserDebug",
-                            "box down type=${down.type} " +
-                                "pri=${event.buttons.isPrimaryPressed} " +
-                                "sec=${event.buttons.isSecondaryPressed} " +
-                                "ter=${event.buttons.isTertiaryPressed}"
+                            "box down type=${down.type} barrel=${barrelHeld.value}"
                         )
                         if (down.type == PointerType.Eraser ||
-                            event.buttons.isSecondaryPressed || event.buttons.isTertiaryPressed
+                            barrelHeld.value
                         ) {
                             // Barrel button: erase strokes in line coordinates.
                             fun erase(pos: Offset) {

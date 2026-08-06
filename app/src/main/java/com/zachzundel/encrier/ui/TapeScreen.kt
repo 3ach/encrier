@@ -28,11 +28,7 @@ import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.input.pointer.PointerEventType
 import androidx.compose.ui.input.pointer.PointerType
 import androidx.compose.ui.input.pointer.changedToDown
-import androidx.compose.ui.input.pointer.isBackPressed
-import androidx.compose.ui.input.pointer.isForwardPressed
-import androidx.compose.ui.input.pointer.isPrimaryPressed
-import androidx.compose.ui.input.pointer.isSecondaryPressed
-import androidx.compose.ui.input.pointer.isTertiaryPressed
+import androidx.compose.ui.input.pointer.motionEventSpy
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalDensity
@@ -80,6 +76,8 @@ fun TapeScreen(vm: TapeViewModel) {
     var viewportH by remember { mutableFloatStateOf(0f) }
     var hoverSlot by remember { mutableStateOf<Int?>(null) } // content slot under the pen
     var eraserPos by remember { mutableStateOf<Offset?>(null) } // screen coords while erasing
+    // Raw barrel-button state, observed off MotionEvents (Compose hides the bits).
+    val barrelHeld = remember { mutableStateOf(false) }
     val eraseRadiusPx = with(density) { Tunables.ERASE_RADIUS_DP.dp.toPx() }
     val touchSlopPx = with(density) { Tunables.TOUCH_TAP_SLOP_DP.dp.toPx() }
     // Display mode latched per line at the first amendment stroke: true = ink
@@ -183,6 +181,7 @@ fun TapeScreen(vm: TapeViewModel) {
                     viewportH = it.height.toFloat()
                     vm.tapeWidthPx = it.width.toFloat()
                 }
+                .motionEventSpy { ev -> barrelHeld.value = isBarrelButtonState(ev.buttonState) }
                 .pointerInput(Unit) {
                     awaitPointerEventScope {
                         var hoverCandidate = -1
@@ -222,18 +221,10 @@ fun TapeScreen(vm: TapeViewModel) {
                         val stylusLike =
                             down.type == PointerType.Stylus || down.type == PointerType.Eraser
                         if (stylusLike) {
-                            Log.i(
-                                "EraserDebug",
-                                "down type=${down.type} pri=${event.buttons.isPrimaryPressed} " +
-                                    "sec=${event.buttons.isSecondaryPressed} " +
-                                    "ter=${event.buttons.isTertiaryPressed} " +
-                                    "back=${event.buttons.isBackPressed} " +
-                                    "fwd=${event.buttons.isForwardPressed}"
-                            )
+                            Log.i("EraserDebug", "down type=${down.type} barrel=${barrelHeld.value}")
                         }
                         if (down.type == PointerType.Eraser ||
-                            (stylusLike &&
-                                (event.buttons.isSecondaryPressed || event.buttons.isTertiaryPressed))
+                            (stylusLike && barrelHeld.value)
                         ) {
                             // Barrel button held: stroke eraser. Deletes whole
                             // strokes it contacts, on rows displaying ink.
