@@ -223,6 +223,10 @@ Design changes from v1, in the order they were decided:
   the original ink's right edge (word gap) so the concatenated ink reads
   linearly. Mid-line insertion in text mode is an explicit non-goal — use
   hover reveal for insertions.
+- **Typed corrections.** The panel has the app's one keyboard field: type the
+  intended text, APPLY updates the item and stores a `corrections` row (ink
+  snapshot + candidates + corrected text) as recognizer training data. Picking
+  a ranked candidate does not record a correction.
 - **Gesture anchors are row slot bands**, not ink bboxes (ink is hidden).
 - **Elbow thresholds** recalibrated from real handwriting: drop ≥ 0.35 ×
   lineHeight, run ≥ 36dp and ≥ 0.75 × drop. Reliability still imperfect;
