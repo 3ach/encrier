@@ -98,6 +98,7 @@ class TapeViewModel : ViewModel() {
 
     fun switchTape(id: Long) {
         _panelLineId.value = null
+        _scrollToLineId.value = null // a pending jump targets the old tape's rows
         session.switchTo(id)
         Log.i("Encrier", "switched to tape $id")
     }
