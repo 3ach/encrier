@@ -44,9 +44,16 @@ fun WritableInkPreview(
     var boxSize by remember { mutableStateOf(IntSize.Zero) }
     var xform by remember { mutableStateOf<InkXform?>(null) }
     val active = remember { mutableStateListOf<InkPoint>() } // box coords
+    // Finished strokes (line coords) kept locally until the stored copies come
+    // back through the flow — bridging the gap so they don't flash out.
+    val justWritten = remember { mutableStateListOf<Pair<Int, List<InkPoint>>>() }
     val strokesState = rememberUpdatedState(strokes)
     val onStrokeState = rememberUpdatedState(onStroke)
     val xformState = rememberUpdatedState(xform)
+
+    LaunchedEffect(strokes.size) {
+        justWritten.removeAll { it.first <= strokes.size }
+    }
 
     LaunchedEffect(boxSize, strokes.isNotEmpty()) {
         if (xform == null && boxSize.width > 0 && strokes.isNotEmpty()) {
@@ -102,15 +109,17 @@ fun WritableInkPreview(
                         }
                         val xf = xformState.value
                         if (xf != null && active.isNotEmpty()) {
-                            onStrokeState.value(
-                                active.map {
-                                    InkPoint(
-                                        xf.minX + (it.x - xf.ox) / xf.scale,
-                                        xf.minY + (it.y - xf.oy) / xf.scale,
-                                        it.t,
-                                    )
-                                }
+                            val mapped = active.map {
+                                InkPoint(
+                                    xf.minX + (it.x - xf.ox) / xf.scale,
+                                    xf.minY + (it.y - xf.oy) / xf.scale,
+                                    it.t,
+                                )
+                            }
+                            justWritten.add(
+                                (strokesState.value.size + justWritten.size + 1) to mapped
                             )
+                            onStrokeState.value(mapped)
                         }
                         active.clear()
                     }
@@ -119,7 +128,7 @@ fun WritableInkPreview(
     ) {
         val xf = xformState.value
         if (xf != null) {
-            for (s in strokesState.value) {
+            for (s in strokesState.value + justWritten.map { it.second }) {
                 if (s.isEmpty()) continue
                 if (s.size == 1) {
                     drawCircle(

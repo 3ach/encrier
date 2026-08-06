@@ -392,8 +392,7 @@ private fun ItemPanel(vm: TapeViewModel, panel: TapeViewModel.Panel, modifier: M
             )
         }
         Text(
-            "written " + shortDate(item.createdAt).lowercase() +
-                " — write in the box to amend",
+            "written " + shortDate(item.createdAt).lowercase(),
             fontFamily = Serif,
             fontStyle = androidx.compose.ui.text.font.FontStyle.Italic,
             fontSize = 12.sp,
