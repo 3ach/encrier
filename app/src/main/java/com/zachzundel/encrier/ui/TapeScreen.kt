@@ -270,13 +270,17 @@ fun TapeScreen(vm: TapeViewModel) {
         ) {
             drawRect(InkWhite)
 
+            // Notebook margin line.
+            val marginX = 44.dp.toPx()
+            drawLine(InkMargin, Offset(marginX, 0f), Offset(marginX, size.height), strokeWidth = 1f)
+
             for ((i, row) in rows.withIndex()) {
                 val top = layout.tops[i] - scroll
                 val rowH = layout.heights[i]
                 if (top + rowH < -lh || top > size.height + lh) continue
 
                 // Bottom rule.
-                drawLine(InkFaint, Offset(0f, top + rowH), Offset(size.width, top + rowH), strokeWidth = 1.5f)
+                drawLine(InkFaint, Offset(0f, top + rowH), Offset(size.width, top + rowH), strokeWidth = 1f)
 
                 val isChild = row.isPendingChild || row.item?.parentId != null
                 val pending = row.line.id in uncommitted
@@ -292,9 +296,14 @@ fun TapeScreen(vm: TapeViewModel) {
                 marker?.let { label ->
                     drawText(
                         textMeasurer = tm,
-                        text = label,
+                        text = label.lowercase(),
                         topLeft = Offset(8.dp.toPx(), top + 2.dp.toPx()),
-                        style = TextStyle(color = InkGray, fontSize = 10.sp, fontFamily = Mono),
+                        style = TextStyle(
+                            color = InkGray,
+                            fontSize = 11.sp,
+                            fontFamily = Serif,
+                            fontStyle = androidx.compose.ui.text.font.FontStyle.Italic,
+                        ),
                     )
                 }
 
@@ -326,7 +335,7 @@ fun TapeScreen(vm: TapeViewModel) {
             // Blank writing area below the last row.
             var yb = layout.end + lh
             while (yb - scroll <= size.height + lh) {
-                drawLine(InkFaint, Offset(0f, yb - scroll), Offset(size.width, yb - scroll), strokeWidth = 1.5f)
+                drawLine(InkFaint, Offset(0f, yb - scroll), Offset(size.width, yb - scroll), strokeWidth = 1f)
                 yb += lh
             }
 
@@ -337,7 +346,7 @@ fun TapeScreen(vm: TapeViewModel) {
         // Only offer the jump when the latest line is actually off-screen.
         if (rows.isNotEmpty() && layout.end - scroll > viewportH + 1f) {
             HardButton(
-                label = "↓ LATEST",
+                label = "↓ latest",
                 modifier = Modifier
                     .align(Alignment.BottomEnd)
                     .padding(16.dp),
@@ -392,14 +401,14 @@ private fun ItemPanel(vm: TapeViewModel, panel: TapeViewModel.Panel, modifier: M
         )
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             if (item.status == ItemEntity.OPEN) {
-                HardButton("DONE", onClick = { vm.markDone(item.lineId) })
-                HardButton("DROP", onClick = { vm.markDropped(item.lineId) })
+                HardButton("done", onClick = { vm.markDone(item.lineId) })
+                HardButton("drop", onClick = { vm.markDropped(item.lineId) })
             } else {
-                HardButton("REOPEN", onClick = { vm.reopen(item.lineId) })
+                HardButton("reopen", onClick = { vm.reopen(item.lineId) })
             }
-            HardButton("DELETE", onClick = { vm.deleteItem(item.lineId) })
+            HardButton("delete", onClick = { vm.deleteItem(item.lineId) })
             Spacer(Modifier.width(8.dp))
-            HardButton("CLOSE", onClick = { vm.closePanel() })
+            HardButton("close", onClick = { vm.closePanel() })
         }
     }
 }
@@ -415,14 +424,14 @@ private fun DrawScope.drawItemRow(
 ) {
     val done = item.status == ItemEntity.DONE
     val dropped = item.status == ItemEntity.DROPPED
-    val textX = if (isChild) 52.dp.toPx() else 16.dp.toPx()
+    val textX = if (isChild) 84.dp.toPx() else 54.dp.toPx()
     // TextMeasurer's layout cache ignores draw-only attributes (color,
     // textDecoration) but returns layouts that still carry them — a struck-
     // through layout would be replayed after REOPEN. Measure with a constant
     // style; apply color at draw time and the strike as an explicit line.
     val layout = tm.measure(
         item.text,
-        style = TextStyle(fontSize = 16.sp),
+        style = TextStyle(fontSize = 16.sp, fontFamily = Serif),
         maxLines = 1,
     )
     boundsOut[item.lineId] = floatArrayOf(textX, textX + layout.size.width)
@@ -488,8 +497,8 @@ private fun DrawScope.drawContentStroke(points: List<InkPoint>, scroll: Float) {
 
 /** Crisp connector glyph (└─) marking a spawned child line (spec §5). */
 private fun DrawScope.drawConnector(top: Float, rowH: Float) {
-    val x = 16.dp.toPx()
+    val x = 60.dp.toPx()
     val midY = top + rowH * 0.55f
-    drawLine(InkBlack, Offset(x, top + rowH * 0.1f), Offset(x, midY), strokeWidth = 3f)
-    drawLine(InkBlack, Offset(x, midY), Offset(x + 22.dp.toPx(), midY), strokeWidth = 3f)
+    drawLine(InkGray, Offset(x, top + rowH * 0.1f), Offset(x, midY), strokeWidth = 2f)
+    drawLine(InkGray, Offset(x, midY), Offset(x + 18.dp.toPx(), midY), strokeWidth = 2f)
 }

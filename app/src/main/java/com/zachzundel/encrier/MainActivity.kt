@@ -67,7 +67,7 @@ private fun AppRoot() {
         Recognition.ModelState.Checking -> BlockingScreen("checking recognition model…")
         Recognition.ModelState.Downloading -> BlockingScreen("downloading recognition model…")
         is Recognition.ModelState.Failed -> BlockingScreen("model download failed:\n${s.message}") {
-            HardButton("RETRY", onClick = { Graph.recognition.ensureModel(scope) })
+            HardButton("retry", onClick = { Graph.recognition.ensureModel(scope) })
         }
     }
 }
@@ -97,15 +97,16 @@ private fun Tabs() {
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Text(
-                if (showHistory) "HISTORY" else "ENCRIER",
-                fontFamily = Mono,
-                fontSize = 14.sp,
+                if (showHistory) "history" else "encrier",
+                fontFamily = com.zachzundel.encrier.ui.Serif,
+                fontStyle = androidx.compose.ui.text.font.FontStyle.Italic,
+                fontSize = 21.sp,
                 color = InkBlack,
             )
             Spacer(Modifier.weight(1f))
             ClockButton(selected = showHistory, onClick = { showHistory = !showHistory })
         }
-        Box(Modifier.fillMaxWidth().height(2.dp).background(InkBlack))
+        Box(Modifier.fillMaxWidth().height(1.dp).background(com.zachzundel.encrier.ui.InkMargin))
         Box(Modifier.weight(1f)) {
             if (showHistory) HistoryScreen(viewModel<HistoryViewModel>())
             else TapeScreen(viewModel<TapeViewModel>())
@@ -115,19 +116,20 @@ private fun Tabs() {
 
 @Composable
 private fun ClockButton(selected: Boolean, onClick: () -> Unit) {
+    val shape = androidx.compose.foundation.shape.RoundedCornerShape(7.dp)
     Box(
         Modifier
-            .border(2.dp, InkBlack)
-            .background(if (selected) InkBlack else InkWhite)
+            .border(1.5.dp, InkBlack, shape)
+            .background(if (selected) InkBlack else InkWhite, shape)
             .hardClickable(onClick)
             .padding(8.dp),
     ) {
         Canvas(Modifier.size(20.dp)) {
             val c = if (selected) InkWhite else InkBlack
             val r = size.minDimension / 2f
-            drawCircle(c, radius = r - 1.5f, style = Stroke(width = 2.5f))
-            drawLine(c, center, center + Offset(0f, -r * 0.55f), strokeWidth = 2.5f)
-            drawLine(c, center, center + Offset(r * 0.4f, r * 0.12f), strokeWidth = 2.5f)
+            drawCircle(c, radius = r - 1f, style = Stroke(width = 2f))
+            drawLine(c, center, center + Offset(0f, -r * 0.55f), strokeWidth = 2f)
+            drawLine(c, center, center + Offset(r * 0.4f, r * 0.12f), strokeWidth = 2f)
         }
     }
 }

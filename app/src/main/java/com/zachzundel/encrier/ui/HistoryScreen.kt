@@ -50,7 +50,7 @@ fun HistoryScreen(vm: HistoryViewModel) {
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             for (preset in listOf(7, 30, 90)) {
                 HardButton(
-                    label = "${preset}D",
+                    label = "${preset}d",
                     selected = days == preset,
                     onClick = { days = preset },
                 )
@@ -65,12 +65,12 @@ fun HistoryScreen(vm: HistoryViewModel) {
         Spacer(Modifier.height(16.dp))
         LazyColumn(Modifier.fillMaxWidth()) {
             item {
-                Text("COMPLETED", fontFamily = Mono, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                Text("completed", fontFamily = Serif, fontSize = 14.sp, fontStyle = androidx.compose.ui.text.font.FontStyle.Italic)
             }
             items(completed, key = { "c${it.id}" }) { ReportRow(it.completedAt ?: 0, it.text) }
             item {
                 Spacer(Modifier.height(16.dp))
-                Text("ADDED", fontFamily = Mono, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                Text("added", fontFamily = Serif, fontSize = 14.sp, fontStyle = androidx.compose.ui.text.font.FontStyle.Italic)
             }
             items(added, key = { "a${it.id}" }) { ReportRow(it.createdAt, it.text) }
         }
@@ -82,6 +82,6 @@ private fun ReportRow(ts: Long, text: String) {
     Row(Modifier.padding(vertical = 4.dp)) {
         Text(shortDate(ts), fontFamily = Mono, fontSize = 13.sp, color = InkGray)
         Spacer(Modifier.padding(horizontal = 6.dp))
-        Text(text, fontSize = 15.sp)
+        Text(text, fontSize = 15.sp, fontFamily = Serif)
     }
 }
