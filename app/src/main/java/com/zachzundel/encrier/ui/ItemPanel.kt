@@ -11,15 +11,18 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.zachzundel.encrier.data.ItemEntity
@@ -29,7 +32,7 @@ import com.zachzundel.encrier.data.shortDate
 @Composable
 internal fun ItemPanel(vm: TapeViewModel, panel: TapeViewModel.Panel, modifier: Modifier) {
     val item = panel.item
-    val fieldShape = androidx.compose.foundation.shape.RoundedCornerShape(8.dp)
+    val fieldShape = RoundedCornerShape(8.dp)
     var suggestionsOpen by remember(item.lineId) { mutableStateOf(false) }
     Column(
         modifier
@@ -37,7 +40,7 @@ internal fun ItemPanel(vm: TapeViewModel, panel: TapeViewModel.Panel, modifier: 
             .verticalScroll(rememberScrollState()),
         verticalArrangement = Arrangement.spacedBy(10.dp),
     ) {
-        androidx.compose.runtime.key(item.lineId) {
+        key(item.lineId) {
             WritableInkPreview(
                 strokes = panel.strokes,
                 modifier = Modifier
@@ -57,7 +60,7 @@ internal fun ItemPanel(vm: TapeViewModel, panel: TapeViewModel.Panel, modifier: 
             Text(
                 "written " + shortDate(item.createdAt).lowercase(),
                 fontFamily = Serif,
-                fontStyle = androidx.compose.ui.text.font.FontStyle.Italic,
+                fontStyle = FontStyle.Italic,
                 fontSize = 12.sp,
                 color = InkGray,
                 modifier = Modifier.weight(1f),
@@ -122,7 +125,7 @@ internal fun ItemPanel(vm: TapeViewModel, panel: TapeViewModel.Panel, modifier: 
 /** A HardButton scaled down to caption weight: margin-gray hairline, no fill. */
 @Composable
 private fun DateNudge(label: String, onClick: () -> Unit) {
-    val shape = androidx.compose.foundation.shape.RoundedCornerShape(7.dp)
+    val shape = RoundedCornerShape(7.dp)
     Text(
         label,
         color = InkGray,

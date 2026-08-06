@@ -1,5 +1,6 @@
 package com.zachzundel.encrier.data
 
+import androidx.room.ColumnInfo
 import androidx.room.Dao
 import androidx.room.Database
 import androidx.room.Entity
@@ -29,7 +30,7 @@ data class LineEntity(
     @PrimaryKey(autoGenerate = true) val id: Long = 0,
     val seq: Double,       // fractional ordering; insert = midpoint
     val createdAt: Long,
-    @androidx.room.ColumnInfo(defaultValue = "1") val tapeId: Long = TapeEntity.DEFAULT_ID,
+    @ColumnInfo(defaultValue = "1") val tapeId: Long = TapeEntity.DEFAULT_ID,
 )
 
 /** A human-corrected recognition: ink + what the model offered + the truth. */

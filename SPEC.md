@@ -248,3 +248,9 @@ Device notes: DC-1 ships `persist.log.tag=I` (Log.d is dropped device-wide);
 its digitizer reports ~550Hz. Do not vary only draw-time attributes
 (color/decoration) between TextMeasurer measure calls — the layout cache
 ignores them but replays them.
+
+Architecture: root package holds app plumbing (`Graph`, `TapeSession`,
+`Tunables`); `data/` owns Room (entities, dao, migrations) plus pure point and
+date helpers; `gesture/` and `ink/` are pure/model layers; `ui/` splits the
+tape into `TapeScreen` (state + input), `TapeCanvas`, `ItemPanel`,
+`AppChrome`, with shared `InkDraw`/`StylusInput`/`Theme` primitives.

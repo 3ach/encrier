@@ -62,6 +62,8 @@ fun decodeCandidates(json: String): List<String> {
     return List(arr.length()) { i -> arr.getString(i) }
 }
 
+const val DAY_MS = 86_400_000L
+
 /** The tape lives on the owner's wall clock, not the device clock (which runs UTC). */
 val TAPE_ZONE: ZoneId = ZoneId.of("America/Los_Angeles")
 

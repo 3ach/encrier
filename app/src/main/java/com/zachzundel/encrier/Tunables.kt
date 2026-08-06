@@ -14,8 +14,13 @@ object Tunables {
     const val GESTURE_RUN_VS_DROP = 0.75f
     const val GESTURE_TURN_MIN_DEG = 60f
     const val GESTURE_TURN_MAX_DEG = 120f
-    const val STROKE_BBOX_PAD_DP = 4f
     const val GESTURE_DEBUG = true         // log strokes that start on committed ink but fail detection
+
+    // Interaction geometry.
+    const val TOUCH_TAP_SLOP_DP = 12f      // touch movement beyond this is a scroll, not a tap
+    const val TAP_MAX_LEN_DP = 10f         // stylus stroke at most this long opens the panel
+    const val ERASE_RADIUS_DP = 10f        // stroke-eraser contact radius
+    const val OVERLAY_LINGER_MS = 400L     // stored ink stays overlaid until Room re-emits it
 
     // Stylus must dwell over one row this long before its ink is revealed —
     // a pen approaching to write passes through hover far faster than this.

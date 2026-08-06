@@ -7,6 +7,7 @@ import com.zachzundel.encrier.Graph
 import com.zachzundel.encrier.TapeSession
 import com.zachzundel.encrier.Tunables
 import com.zachzundel.encrier.data.CorrectionEntity
+import com.zachzundel.encrier.data.DAY_MS
 import com.zachzundel.encrier.data.InkPoint
 import com.zachzundel.encrier.data.ItemEntity
 import com.zachzundel.encrier.data.LineEntity
@@ -22,6 +23,9 @@ import com.zachzundel.encrier.data.decodePoints
 import com.zachzundel.encrier.gesture.Elbow
 import com.zachzundel.encrier.gesture.RowMarks
 import com.zachzundel.encrier.ink.Recognition
+import java.time.LocalDate
+import java.util.concurrent.ConcurrentHashMap
+import kotlin.math.hypot
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.Job
@@ -34,6 +38,7 @@ import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
+import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
@@ -55,7 +60,7 @@ class TapeViewModel(
     var amendGapPx = 0f
 
     /** Rendered text span [x0, x1] per committed line, reported by the UI each draw. */
-    val textBounds = java.util.concurrent.ConcurrentHashMap<Long, FloatArray>()
+    val textBounds = ConcurrentHashMap<Long, FloatArray>()
 
     /** Spawned-but-uncommitted child lines: lineId -> parent item id. In-memory by design. */
     private val pendingParent = MutableStateFlow<Map<Long, Long>>(emptyMap())
@@ -133,7 +138,7 @@ class TapeViewModel(
      * with the line id of the first row of that date's latest run. Drives
      * jump-to-date.
      */
-    val availableDates: StateFlow<List<Pair<java.time.LocalDate, Long>>> =
+    val availableDates: StateFlow<List<Pair<LocalDate, Long>>> =
         rows.map { rowsNow ->
             availableDates(rowsNow.map { DatedRow(it.line.id, it.line.firstInkAt) }, TAPE_ZONE)
         }.stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
@@ -235,7 +240,7 @@ class TapeViewModel(
                 if (storedAsInk) {
                     // Keep the overlay briefly so Room's emission lands first.
                     launch {
-                        delay(400)
+                        delay(Tunables.OVERLAY_LINGER_MS)
                         _overlayStrokes.update { cur -> cur.filter { it !== points } }
                     }
                 } else {
@@ -337,10 +342,7 @@ class TapeViewModel(
                 RowMarks.Kind.STRIKE -> {
                     if (item.status == ItemEntity.OPEN) {
                         dao.updateItem(
-                            item.copy(
-                                status = ItemEntity.DONE,
-                                completedAt = System.currentTimeMillis(),
-                            )
+                            item.copy(status = ItemEntity.DONE, completedAt = now)
                         )
                         return false
                     }
@@ -415,7 +417,7 @@ class TapeViewModel(
     private fun pathLength(points: List<InkPoint>): Float {
         var len = 0f
         for (i in 1 until points.size) {
-            len += kotlin.math.hypot(
+            len += hypot(
                 points[i].x - points[i - 1].x,
                 points[i].y - points[i - 1].y,
             )
@@ -434,7 +436,7 @@ class TapeViewModel(
                     ensureLoaded(lineId)
                     val strokes = _strokeCache.value[lineId].orEmpty()
                     val hit = strokes.filter { s ->
-                        s.points.any { q -> kotlin.math.hypot(q.x - p.x, q.y - p.y) <= radiusPx }
+                        s.points.any { q -> hypot(q.x - p.x, q.y - p.y) <= radiusPx }
                     }
                     if (hit.isEmpty()) return@withLock
                     for (s in hit) if (s.id != 0L) dao.deleteStroke(s.id)
@@ -581,7 +583,7 @@ class TapeViewModel(
             try {
                 mutex.withLock {
                     val cur = dao.itemForLine(lineId) ?: return@withLock
-                    dao.updateItem(cur.copy(createdAt = cur.createdAt + days * 86_400_000L))
+                    dao.updateItem(cur.copy(createdAt = cur.createdAt + days * DAY_MS))
                 }
             } catch (e: CancellationException) {
                 throw e
@@ -783,10 +785,3 @@ class TapeViewModel(
  */
 internal fun amendShift(inkMaxX: Float?, gapPx: Float, relMinX: Float): Float =
     if (inkMaxX == null) 0f else (inkMaxX + gapPx) - relMinX
-
-private inline fun <T> MutableStateFlow<T>.update(transform: (T) -> T) {
-    while (true) {
-        val cur = value
-        if (compareAndSet(cur, transform(cur))) return
-    }
-}

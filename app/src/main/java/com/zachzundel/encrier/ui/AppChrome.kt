@@ -16,6 +16,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -32,11 +33,14 @@ import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.zachzundel.encrier.data.TAPE_ZONE
 import com.zachzundel.encrier.data.TapeEntity
 import com.zachzundel.encrier.data.dayMarkerLabel
+import java.time.LocalDate
 
 @Composable
 internal fun Tabs() {
@@ -56,7 +60,7 @@ internal fun Tabs() {
             Text(
                 if (showHistory) "history" else tapeName,
                 fontFamily = Serif,
-                fontStyle = androidx.compose.ui.text.font.FontStyle.Italic,
+                fontStyle = FontStyle.Italic,
                 fontSize = 21.sp,
                 color = InkBlack,
                 modifier = if (showHistory) Modifier
@@ -165,7 +169,7 @@ private fun TapePickerCard(
 /** Notebook card listing the tape's day markers; tap one to jump there. */
 @Composable
 private fun DatePickerCard(
-    dates: List<Pair<java.time.LocalDate, Long>>,
+    dates: List<Pair<LocalDate, Long>>,
     onPick: (Long) -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -179,18 +183,18 @@ private fun DatePickerCard(
             Text(
                 "no dates yet",
                 fontFamily = Serif,
-                fontStyle = androidx.compose.ui.text.font.FontStyle.Italic,
+                fontStyle = FontStyle.Italic,
                 fontSize = 14.sp,
                 color = InkGray,
                 modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
             )
         }
         for ((date, lineId) in dates) {
-            val ts = date.atStartOfDay(com.zachzundel.encrier.data.TAPE_ZONE).toInstant().toEpochMilli()
+            val ts = date.atStartOfDay(TAPE_ZONE).toInstant().toEpochMilli()
             Text(
                 dayMarkerLabel(ts).lowercase(),
                 fontFamily = Serif,
-                fontStyle = androidx.compose.ui.text.font.FontStyle.Italic,
+                fontStyle = FontStyle.Italic,
                 fontSize = 14.sp,
                 color = InkBlack,
                 modifier = Modifier
@@ -208,7 +212,7 @@ private fun GlyphButton(
     onClick: () -> Unit,
     glyph: DrawScope.(Color) -> Unit,
 ) {
-    val shape = androidx.compose.foundation.shape.RoundedCornerShape(7.dp)
+    val shape = RoundedCornerShape(7.dp)
     Box(
         Modifier
             .border(1.5.dp, InkBlack, shape)

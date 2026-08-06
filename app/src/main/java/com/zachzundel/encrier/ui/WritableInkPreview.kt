@@ -19,10 +19,10 @@ import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.input.pointer.isSecondaryPressed
 import androidx.compose.ui.input.pointer.isTertiaryPressed
+import androidx.compose.ui.unit.dp
+import com.zachzundel.encrier.Tunables
 import com.zachzundel.encrier.data.InkPoint
 import com.zachzundel.encrier.data.bounds
-
-private const val ERASE_RADIUS_BOX_PX = 14f
 
 private data class InkXform(
     val minX: Float,
@@ -105,7 +105,7 @@ fun WritableInkPreview(
                                         xf.minY + (pos.y - xf.oy) / xf.scale,
                                         0L,
                                     ),
-                                    ERASE_RADIUS_BOX_PX / xf.scale,
+                                    Tunables.ERASE_RADIUS_DP.dp.toPx() / xf.scale,
                                 )
                             }
                             trackStroke(down) { pos, _ -> erase(pos) }

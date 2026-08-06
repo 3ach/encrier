@@ -18,13 +18,14 @@ import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.zachzundel.encrier.Graph
 import com.zachzundel.encrier.TapeSession
+import com.zachzundel.encrier.data.DAY_MS
 import com.zachzundel.encrier.data.ItemEntity
 import com.zachzundel.encrier.data.TapeDao
 import com.zachzundel.encrier.data.shortDate
@@ -48,7 +49,7 @@ class HistoryViewModel(
 fun HistoryScreen(vm: HistoryViewModel) {
     val items by vm.items.collectAsState()
     var days by remember { mutableIntStateOf(7) }
-    val from = System.currentTimeMillis() - days * 86_400_000L
+    val from = System.currentTimeMillis() - days * DAY_MS
 
     val added = items.filter { it.createdAt >= from }.sortedByDescending { it.createdAt }
     val completed = items.filter { (it.completedAt ?: 0) >= from }
@@ -74,12 +75,12 @@ fun HistoryScreen(vm: HistoryViewModel) {
         Spacer(Modifier.height(16.dp))
         LazyColumn(Modifier.fillMaxWidth()) {
             item {
-                Text("completed", fontFamily = Serif, fontSize = 14.sp, fontStyle = androidx.compose.ui.text.font.FontStyle.Italic)
+                Text("completed", fontFamily = Serif, fontSize = 14.sp, fontStyle = FontStyle.Italic)
             }
             items(completed, key = { "c${it.id}" }) { ReportRow(it.completedAt ?: 0, it.text) }
             item {
                 Spacer(Modifier.height(16.dp))
-                Text("added", fontFamily = Serif, fontSize = 14.sp, fontStyle = androidx.compose.ui.text.font.FontStyle.Italic)
+                Text("added", fontFamily = Serif, fontSize = 14.sp, fontStyle = FontStyle.Italic)
             }
             items(added, key = { "a${it.id}" }) { ReportRow(it.createdAt, it.text) }
         }

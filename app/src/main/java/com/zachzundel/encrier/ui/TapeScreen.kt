@@ -1,5 +1,6 @@
 package com.zachzundel.encrier.ui
 
+import android.util.Log
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
@@ -21,6 +22,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.PathEffect
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.input.pointer.PointerEventType
@@ -33,6 +35,7 @@ import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.drawText
+import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -42,8 +45,6 @@ import com.zachzundel.encrier.data.ItemEntity
 import com.zachzundel.encrier.data.TAPE_ZONE
 import com.zachzundel.encrier.data.dayMarkerLabel
 import kotlin.math.abs
-
-private const val TOUCH_TAP_SLOP_PX = 12f
 
 /**
  * Whether a row displays its ink rather than its committed text: blank rows
@@ -76,7 +77,8 @@ fun TapeScreen(vm: TapeViewModel) {
     var viewportH by remember { mutableFloatStateOf(0f) }
     var hoverSlot by remember { mutableStateOf<Int?>(null) } // content slot under the pen
     var eraserPos by remember { mutableStateOf<Offset?>(null) } // screen coords while erasing
-    val eraseRadiusPx = with(density) { 10.dp.toPx() }
+    val eraseRadiusPx = with(density) { Tunables.ERASE_RADIUS_DP.dp.toPx() }
+    val touchSlopPx = with(density) { Tunables.TOUCH_TAP_SLOP_DP.dp.toPx() }
     // Display mode latched per line at the first amendment stroke: true = ink
     // was revealed when writing began. Sticky until the amendment commits.
     val latchedInk = remember { mutableStateMapOf<Long, Boolean>() }
@@ -131,7 +133,7 @@ fun TapeScreen(vm: TapeViewModel) {
     LaunchedEffect(lh) {
         vm.lineHeightPx = lh
         vm.gestureMinRunPx = with(density) { Tunables.GESTURE_MIN_RUN_DP.dp.toPx() }
-        vm.tapMaxLenPx = with(density) { 10.dp.toPx() }
+        vm.tapMaxLenPx = with(density) { Tunables.TAP_MAX_LEN_DP.dp.toPx() }
         vm.amendGapPx = with(density) { Tunables.AMEND_GAP_DP.dp.toPx() }
     }
 
@@ -155,7 +157,7 @@ fun TapeScreen(vm: TapeViewModel) {
         val i = rows.indexOfFirst { it.line.id == id }
         if (i < 0) return@LaunchedEffect
         scroll = layoutState.value.topOf(i).coerceIn(0f, maxScroll())
-        android.util.Log.i("Encrier", "jump-to-date: line=$id slot=$i scroll=$scroll")
+        Log.i("Encrier", "jump-to-date: line=$id slot=$i scroll=$scroll")
         vm.consumeScrollRequest()
     }
 
@@ -274,14 +276,14 @@ fun TapeScreen(vm: TapeViewModel) {
                                     abs(ch.position.x - downPos.x),
                                     abs(ch.position.y - downPos.y),
                                 )
-                                if (moved > TOUCH_TAP_SLOP_PX) {
+                                if (moved > touchSlopPx) {
                                     scroll = (scroll - (ch.position.y - prevY)).coerceIn(0f, maxScroll())
                                 }
                                 prevY = ch.position.y
                                 ch.consume()
                                 if (!ch.pressed) break
                             }
-                            if (moved <= TOUCH_TAP_SLOP_PX) {
+                            if (moved <= touchSlopPx) {
                                 vm.tapAt(downPos.y + scroll, layoutState.value)
                             }
                         }
@@ -319,7 +321,7 @@ fun TapeScreen(vm: TapeViewModel) {
                             color = InkGray,
                             fontSize = 11.sp,
                             fontFamily = Serif,
-                            fontStyle = androidx.compose.ui.text.font.FontStyle.Italic,
+                            fontStyle = FontStyle.Italic,
                         ),
                     )
                 }
@@ -340,7 +342,7 @@ fun TapeScreen(vm: TapeViewModel) {
                     drawRoundRect(
                         color = InkGray,
                         topLeft = Offset(8.dp.toPx(), top + rowH - 14.dp.toPx()),
-                        size = androidx.compose.ui.geometry.Size(40.dp.toPx(), 10.dp.toPx()),
+                        size = Size(40.dp.toPx(), 10.dp.toPx()),
                         style = Stroke(
                             width = 1.5f,
                             pathEffect = PathEffect.dashPathEffect(floatArrayOf(6f, 4f)),
