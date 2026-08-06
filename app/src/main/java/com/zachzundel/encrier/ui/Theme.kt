@@ -3,7 +3,10 @@ package com.zachzundel.encrier.ui
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.padding
+import androidx.compose.runtime.remember
+import androidx.compose.ui.composed
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.lightColorScheme
@@ -38,6 +41,15 @@ fun EncrierTheme(content: @Composable () -> Unit) {
     )
 }
 
+/** Clickable without the Material ripple — no animation on e-paper (spec §1). */
+fun Modifier.hardClickable(onClick: () -> Unit): Modifier = composed {
+    clickable(
+        interactionSource = remember { MutableInteractionSource() },
+        indication = null,
+        onClick = onClick,
+    )
+}
+
 /** Square, bordered, stylus-tappable button. Selected state = inverted fill. */
 @Composable
 fun HardButton(
@@ -55,7 +67,7 @@ fun HardButton(
         modifier = modifier
             .border(2.dp, InkBlack)
             .background(if (selected) InkBlack else InkWhite)
-            .clickable(onClick = onClick)
+            .hardClickable(onClick)
             .padding(horizontal = 14.dp, vertical = 10.dp),
     )
 }

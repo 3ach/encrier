@@ -40,6 +40,7 @@ import com.zachzundel.encrier.ui.HardButton
 import com.zachzundel.encrier.ui.InkBlack
 import com.zachzundel.encrier.ui.InkWhite
 import com.zachzundel.encrier.ui.Mono
+import com.zachzundel.encrier.ui.hardClickable
 import com.zachzundel.encrier.ui.HistoryScreen
 import com.zachzundel.encrier.ui.HistoryViewModel
 import com.zachzundel.encrier.ui.TapeScreen
@@ -118,7 +119,7 @@ private fun ClockButton(selected: Boolean, onClick: () -> Unit) {
         Modifier
             .border(2.dp, InkBlack)
             .background(if (selected) InkBlack else InkWhite)
-            .clickable(onClick = onClick)
+            .hardClickable(onClick)
             .padding(8.dp),
     ) {
         Canvas(Modifier.size(20.dp)) {
