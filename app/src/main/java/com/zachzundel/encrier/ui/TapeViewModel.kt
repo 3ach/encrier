@@ -40,6 +40,7 @@ class TapeViewModel : ViewModel() {
     var tapeWidthPx = 1f
     var gestureMinRunPx = 0f
     var tapMaxLenPx = 0f
+    var amendGapPx = 0f
 
     /** Rendered text span [x0, x1] per committed line, reported by the UI each draw. */
     val textBounds = java.util.concurrent.ConcurrentHashMap<Long, FloatArray>()
@@ -57,6 +58,15 @@ class TapeViewModel : ViewModel() {
     /** Just-finished strokes drawn in content coords until Room emits them, to avoid flicker. */
     private val _overlayStrokes = MutableStateFlow<List<List<InkPoint>>>(emptyList())
     val overlayStrokes: StateFlow<List<List<InkPoint>>> = _overlayStrokes.asStateFlow()
+
+    /**
+     * Strokes appended to a text-displayed row, kept at their on-screen positions
+     * (line-relative) so they stay visible where written until the commit. The
+     * stored copies are x-shifted past the original ink instead.
+     */
+    private val _amendDisplay = MutableStateFlow<Map<Long, List<RenderStroke>>>(emptyMap())
+    val amendDisplay: StateFlow<Map<Long, List<RenderStroke>>> = _amendDisplay.asStateFlow()
+    private val amendOffset = mutableMapOf<Long, Float>()
 
     /** Inline action panel for a tapped committed line: source ink on demand + actions. */
     data class Panel(val item: ItemEntity, val strokes: List<List<InkPoint>>)
@@ -97,12 +107,12 @@ class TapeViewModel : ViewModel() {
         }
     }
 
-    fun onStrokeFinished(points: List<InkPoint>) {
+    fun onStrokeFinished(points: List<InkPoint>, inkRevealed: Boolean = false) {
         if (points.isEmpty()) return
         _overlayStrokes.update { it + listOf(points) }
         viewModelScope.launch {
             try {
-                mutex.withLock { handleStroke(points) }
+                mutex.withLock { handleStroke(points, inkRevealed) }
             } finally {
                 // Keep the overlay briefly so Room's emission lands before removal.
                 launch {
@@ -113,7 +123,7 @@ class TapeViewModel : ViewModel() {
         }
     }
 
-    private suspend fun handleStroke(points: List<InkPoint>) {
+    private suspend fun handleStroke(points: List<InkPoint>, inkRevealed: Boolean) {
         val now = System.currentTimeMillis()
         val lh = lineHeightPx
         val rowsNow = rows.value
@@ -187,7 +197,23 @@ class TapeViewModel : ViewModel() {
             targetId = lastId
         }
         ensureLoaded(targetId)
-        val rel = points.map { InkPoint(it.x, it.y - slot * lh, it.t) }
+        var rel = points.map { InkPoint(it.x, it.y - slot * lh, it.t) }
+
+        // Appending to a text-displayed row: the pen wrote relative to the short
+        // rendered text, not the original ink. Store shifted past the ink's right
+        // edge; keep an unshifted copy visible where it was written.
+        val isTextAmend = slot < rowsNow.size && rowsNow[slot].item != null && !inkRevealed
+        if (isTextAmend) {
+            val offset = amendOffset.getOrPut(targetId) {
+                val existing = _strokeCache.value[targetId].orEmpty()
+                val inkMaxX = existing.flatMap { it.points }.maxOfOrNull { it.x }
+                if (inkMaxX == null) 0f
+                else (inkMaxX + amendGapPx) - rel.minOf { it.x }
+            }
+            _amendDisplay.update { it + (targetId to it[targetId].orEmpty() + RenderStroke(rel)) }
+            if (offset != 0f) rel = rel.map { InkPoint(it.x + offset, it.y, it.t) }
+        }
+
         val ord = dao.maxOrd(targetId) + 1
         dao.insertStroke(
             StrokeEntity(lineId = targetId, ord = ord, pointsJson = encodePoints(rel), addedAt = now)
@@ -262,6 +288,8 @@ class TapeViewModel : ViewModel() {
         textBounds.remove(lineId)
         dirty.remove(lineId)
         _uncommitted.update { it - lineId }
+        amendOffset.remove(lineId)
+        _amendDisplay.update { it - lineId }
         _panelLineId.value = null
     }
 
@@ -344,6 +372,8 @@ class TapeViewModel : ViewModel() {
             // Blank recognition: no item, ink retained (spec §4).
             dirty.remove(lineId)
             _uncommitted.update { it - lineId }
+            amendOffset.remove(lineId)
+            _amendDisplay.update { it - lineId }
         }
     }
 

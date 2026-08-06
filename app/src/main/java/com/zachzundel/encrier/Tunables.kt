@@ -19,6 +19,11 @@ object Tunables {
     // a pen approaching to write passes through hover far faster than this.
     const val HOVER_REVEAL_MS = 600L
 
+    // Word-sized gap inserted between existing ink and strokes appended while a
+    // row is displayed as text (pen position is relative to the short text, not
+    // the original ink — stored strokes are shifted past the ink's right edge).
+    const val AMEND_GAP_DP = 24f
+
     // Strike-out (→ DONE) and scribble-out (→ DELETE) over a committed row's text.
     const val STRIKE_MIN_COVER = 0.6f       // horizontal overlap with text span, fraction
     const val STRIKE_MAX_HEIGHT_FRAC = 0.4f // × lineHeight max vertical extent

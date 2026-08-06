@@ -65,6 +65,7 @@ fun TapeScreen(vm: TapeViewModel) {
     val cache by vm.strokeCache.collectAsState()
     val uncommitted by vm.uncommitted.collectAsState()
     val overlay by vm.overlayStrokes.collectAsState()
+    val amendDisplay by vm.amendDisplay.collectAsState()
     val panel by vm.panel.collectAsState()
     val tm = rememberTextMeasurer()
     val density = LocalDensity.current
@@ -90,6 +91,7 @@ fun TapeScreen(vm: TapeViewModel) {
         vm.lineHeightPx = lh
         vm.gestureMinRunPx = with(density) { Tunables.GESTURE_MIN_RUN_DP.dp.toPx() }
         vm.tapMaxLenPx = with(density) { 10.dp.toPx() }
+        vm.amendGapPx = with(density) { Tunables.AMEND_GAP_DP.dp.toPx() }
     }
 
     // Open scrolled to the last occupied line (spec §3).
@@ -185,10 +187,12 @@ fun TapeScreen(vm: TapeViewModel) {
                             // Latch the row's display mode at the first stroke of an
                             // amendment; it must not change until the commit.
                             val downSlot = ((down.position.y + scroll) / lh).toInt()
+                            var strokeRevealed = false
                             rows.getOrNull(downSlot)?.let { r ->
                                 if (r.item != null && !latchedInk.containsKey(r.line.id)) {
                                     latchedInk[r.line.id] = (hoverSlot == downSlot)
                                 }
+                                strokeRevealed = latchedInk[r.line.id] == true
                             }
                             // Stylus draws (spec §3). Raw capture incl. historical points.
                             active.clear()
@@ -205,7 +209,9 @@ fun TapeScreen(vm: TapeViewModel) {
                                 ch.consume()
                                 if (!ch.pressed) break
                             }
-                            if (active.isNotEmpty()) vm.onStrokeFinished(active.toList())
+                            if (active.isNotEmpty()) {
+                                vm.onStrokeFinished(active.toList(), strokeRevealed)
+                            }
                             active.clear()
                             hoverCandidate = -1 // fresh dwell required after each stroke
                         } else {
@@ -273,6 +279,8 @@ fun TapeScreen(vm: TapeViewModel) {
                 }
                 if (!showInk) {
                     drawItemRow(tm, item!!, childStats[item.id], top, lh, isChild, vm.textBounds)
+                    // Amendment strokes stay visible where they were written.
+                    for (s in amendDisplay[row.line.id].orEmpty()) drawInkStroke(s.points, top)
                 } else {
                     val strokes = cache[row.line.id].orEmpty()
                     for (s in strokes) drawInkStroke(s.points, top)
