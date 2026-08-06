@@ -227,6 +227,9 @@ Design changes from v1, in the order they were decided:
 - **Elbow thresholds** recalibrated from real handwriting: drop ≥ 0.35 ×
   lineHeight, run ≥ 36dp and ≥ 0.75 × drop. Reliability still imperfect;
   open item.
+- **Jump to date.** A calendar button on the tape's top bar (left of the
+  clock) opens a notebook card listing the tape's day markers, most recent
+  first; tapping one scrolls that day's first line to the top of the viewport.
 
 Device notes: DC-1 ships `persist.log.tag=I` (Log.d is dropped device-wide);
 its digitizer reports ~550Hz. Do not vary only draw-time attributes

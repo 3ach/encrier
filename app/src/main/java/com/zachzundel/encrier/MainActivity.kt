@@ -14,7 +14,11 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -24,7 +28,9 @@ import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.layout.size
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
@@ -34,10 +40,12 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.zachzundel.encrier.data.dayMarkerLabel
 import com.zachzundel.encrier.ink.Recognition
 import com.zachzundel.encrier.ui.EncrierTheme
 import com.zachzundel.encrier.ui.HardButton
 import com.zachzundel.encrier.ui.InkBlack
+import com.zachzundel.encrier.ui.InkGray
 import com.zachzundel.encrier.ui.InkWhite
 import com.zachzundel.encrier.ui.Mono
 import com.zachzundel.encrier.ui.hardClickable
@@ -91,6 +99,9 @@ private fun BlockingScreen(message: String, action: (@Composable () -> Unit)? = 
 @Composable
 private fun Tabs() {
     var showHistory by rememberSaveable { mutableStateOf(false) }
+    var showDates by rememberSaveable { mutableStateOf(false) }
+    val tapeVm = viewModel<TapeViewModel>()
+    val availableDates by tapeVm.availableDates.collectAsState()
     Column(Modifier.fillMaxSize()) {
         Row(
             Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp),
@@ -104,12 +115,107 @@ private fun Tabs() {
                 color = InkBlack,
             )
             Spacer(Modifier.weight(1f))
-            ClockButton(selected = showHistory, onClick = { showHistory = !showHistory })
+            if (!showHistory) {
+                CalendarButton(selected = showDates, onClick = { showDates = !showDates })
+                Spacer(Modifier.width(10.dp))
+            }
+            ClockButton(
+                selected = showHistory,
+                onClick = {
+                    showDates = false
+                    showHistory = !showHistory
+                },
+            )
         }
         Box(Modifier.fillMaxWidth().height(1.dp).background(com.zachzundel.encrier.ui.InkMargin))
         Box(Modifier.weight(1f)) {
             if (showHistory) HistoryScreen(viewModel<HistoryViewModel>())
-            else TapeScreen(viewModel<TapeViewModel>())
+            else TapeScreen(tapeVm)
+            if (!showHistory && showDates) {
+                DatePickerCard(
+                    dates = availableDates,
+                    onPick = { lineId ->
+                        tapeVm.requestScrollTo(lineId)
+                        showDates = false
+                    },
+                    modifier = Modifier.align(Alignment.TopEnd).padding(12.dp),
+                )
+            }
+        }
+    }
+}
+
+/** Notebook card listing the tape's day markers; tap one to jump there. */
+@Composable
+private fun DatePickerCard(
+    dates: List<Pair<java.time.LocalDate, Long>>,
+    onPick: (Long) -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    val shape = androidx.compose.foundation.shape.RoundedCornerShape(10.dp)
+    Column(
+        modifier
+            .background(InkWhite, shape)
+            .border(1.5.dp, InkBlack, shape)
+            .padding(8.dp)
+            .heightIn(max = 340.dp)
+            .verticalScroll(rememberScrollState()),
+    ) {
+        if (dates.isEmpty()) {
+            Text(
+                "no dates yet",
+                fontFamily = com.zachzundel.encrier.ui.Serif,
+                fontStyle = androidx.compose.ui.text.font.FontStyle.Italic,
+                fontSize = 14.sp,
+                color = InkGray,
+                modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
+            )
+        }
+        for ((date, lineId) in dates) {
+            val ts = date.atStartOfDay(java.time.ZoneId.systemDefault()).toInstant().toEpochMilli()
+            Text(
+                dayMarkerLabel(ts).lowercase(),
+                fontFamily = com.zachzundel.encrier.ui.Serif,
+                fontStyle = androidx.compose.ui.text.font.FontStyle.Italic,
+                fontSize = 14.sp,
+                color = InkBlack,
+                modifier = Modifier
+                    .hardClickable { onPick(lineId) }
+                    .padding(horizontal = 10.dp, vertical = 6.dp),
+            )
+        }
+    }
+}
+
+/** Calendar glyph in the same drawn style as ClockButton. */
+@Composable
+private fun CalendarButton(selected: Boolean, onClick: () -> Unit) {
+    val shape = androidx.compose.foundation.shape.RoundedCornerShape(7.dp)
+    Box(
+        Modifier
+            .border(1.5.dp, InkBlack, shape)
+            .background(if (selected) InkBlack else InkWhite, shape)
+            .hardClickable(onClick)
+            .padding(8.dp),
+    ) {
+        Canvas(Modifier.size(20.dp)) {
+            val c = if (selected) InkWhite else InkBlack
+            val w = size.width
+            val h = size.height
+            val bodyTop = h * 0.18f
+            drawRoundRect(
+                color = c,
+                topLeft = Offset(w * 0.05f, bodyTop),
+                size = Size(w * 0.9f, h - bodyTop - 1f),
+                cornerRadius = CornerRadius(3f, 3f),
+                style = Stroke(width = 2f),
+            )
+            // Header rule under the top edge.
+            val ruleY = bodyTop + h * 0.2f
+            drawLine(c, Offset(w * 0.05f, ruleY), Offset(w * 0.95f, ruleY), strokeWidth = 2f)
+            // Binding ticks above the body.
+            drawLine(c, Offset(w * 0.32f, 0f), Offset(w * 0.32f, bodyTop + 2f), strokeWidth = 2f)
+            drawLine(c, Offset(w * 0.68f, 0f), Offset(w * 0.68f, bodyTop + 2f), strokeWidth = 2f)
         }
     }
 }

@@ -13,6 +13,7 @@ import com.zachzundel.encrier.data.StrokeEntity
 import com.zachzundel.encrier.data.encodeCandidates
 import com.zachzundel.encrier.data.encodePoints
 import com.zachzundel.encrier.data.decodePoints
+import com.zachzundel.encrier.data.localDate
 import com.zachzundel.encrier.gesture.Elbow
 import com.zachzundel.encrier.gesture.RowMarks
 import kotlinx.coroutines.Job
@@ -22,6 +23,7 @@ import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
@@ -77,6 +79,35 @@ class TapeViewModel : ViewModel() {
             val byLine = items.associateBy { it.lineId }
             lines.map { TapeRow(it, byLine[it.id], pending.containsKey(it.id)) }
         }.stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
+
+    /**
+     * Distinct local dates that have any ink (most recent first), each paired
+     * with the line id of the first row of that date. Drives jump-to-date.
+     */
+    val availableDates: StateFlow<List<Pair<java.time.LocalDate, Long>>> =
+        rows.map { rowsNow ->
+            val seen = mutableSetOf<java.time.LocalDate>()
+            val firsts = mutableListOf<Pair<java.time.LocalDate, Long>>()
+            for (row in rowsNow) {
+                val ts = row.line.firstInkAt ?: continue
+                val d = localDate(ts)
+                if (seen.add(d)) firsts += d to row.line.id
+            }
+            firsts.sortedByDescending { it.first }
+        }.stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
+
+    /** Jump-to-date scroll request: the tape consumes it once handled. */
+    private val _scrollToLineId = MutableStateFlow<Long?>(null)
+    val scrollToLineId: StateFlow<Long?> = _scrollToLineId.asStateFlow()
+
+    fun requestScrollTo(lineId: Long) {
+        Log.i("Encrier", "jump-to-date: requested line=$lineId")
+        _scrollToLineId.value = lineId
+    }
+
+    fun consumeScrollRequest() {
+        _scrollToLineId.value = null
+    }
 
     /**
      * Derived from the DB flows, never a snapshot: buttons always reflect current
