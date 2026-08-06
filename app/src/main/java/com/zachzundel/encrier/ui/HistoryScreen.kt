@@ -30,13 +30,13 @@ import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.stateIn
 
-class ReportsViewModel : ViewModel() {
+class HistoryViewModel : ViewModel() {
     val items: StateFlow<List<ItemEntity>> = Graph.db.dao().observeItems()
         .stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
 }
 
 @Composable
-fun ReportsScreen(vm: ReportsViewModel) {
+fun HistoryScreen(vm: HistoryViewModel) {
     val items by vm.items.collectAsState()
     var days by remember { mutableIntStateOf(7) }
     val from = System.currentTimeMillis() - days * 86_400_000L

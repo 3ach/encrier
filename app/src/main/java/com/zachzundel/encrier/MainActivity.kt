@@ -20,8 +20,12 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.layout.size
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -36,8 +40,8 @@ import com.zachzundel.encrier.ui.HardButton
 import com.zachzundel.encrier.ui.InkBlack
 import com.zachzundel.encrier.ui.InkWhite
 import com.zachzundel.encrier.ui.Mono
-import com.zachzundel.encrier.ui.ReportsScreen
-import com.zachzundel.encrier.ui.ReportsViewModel
+import com.zachzundel.encrier.ui.HistoryScreen
+import com.zachzundel.encrier.ui.HistoryViewModel
 import com.zachzundel.encrier.ui.TapeScreen
 import com.zachzundel.encrier.ui.TapeViewModel
 
@@ -85,29 +89,44 @@ private fun BlockingScreen(message: String, action: (@Composable () -> Unit)? = 
 
 @Composable
 private fun Tabs() {
-    var tab by rememberSaveable { mutableIntStateOf(0) }
+    var showHistory by rememberSaveable { mutableStateOf(false) }
     Column(Modifier.fillMaxSize()) {
-        Box(Modifier.weight(1f)) {
-            when (tab) {
-                0 -> TapeScreen(viewModel<TapeViewModel>())
-                else -> ReportsScreen(viewModel<ReportsViewModel>())
-            }
+        Row(
+            Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Text(
+                if (showHistory) "HISTORY" else "ENCRIER",
+                fontFamily = Mono,
+                fontSize = 14.sp,
+                color = InkBlack,
+            )
+            Spacer(Modifier.weight(1f))
+            ClockButton(selected = showHistory, onClick = { showHistory = !showHistory })
         }
-        Row(Modifier.fillMaxWidth().border(2.dp, InkBlack)) {
-            for ((i, label) in listOf("WRITE", "REPORTS").withIndex()) {
-                Text(
-                    label,
-                    fontFamily = Mono,
-                    fontSize = 14.sp,
-                    textAlign = TextAlign.Center,
-                    color = if (tab == i) InkWhite else InkBlack,
-                    modifier = Modifier
-                        .weight(1f)
-                        .background(if (tab == i) InkBlack else InkWhite)
-                        .clickable { tab = i }
-                        .padding(vertical = 14.dp),
-                )
-            }
+        Box(Modifier.fillMaxWidth().height(2.dp).background(InkBlack))
+        Box(Modifier.weight(1f)) {
+            if (showHistory) HistoryScreen(viewModel<HistoryViewModel>())
+            else TapeScreen(viewModel<TapeViewModel>())
+        }
+    }
+}
+
+@Composable
+private fun ClockButton(selected: Boolean, onClick: () -> Unit) {
+    Box(
+        Modifier
+            .border(2.dp, InkBlack)
+            .background(if (selected) InkBlack else InkWhite)
+            .clickable(onClick = onClick)
+            .padding(8.dp),
+    ) {
+        Canvas(Modifier.size(20.dp)) {
+            val c = if (selected) InkWhite else InkBlack
+            val r = size.minDimension / 2f
+            drawCircle(c, radius = r - 1.5f, style = Stroke(width = 2.5f))
+            drawLine(c, center, center + Offset(0f, -r * 0.55f), strokeWidth = 2.5f)
+            drawLine(c, center, center + Offset(r * 0.4f, r * 0.12f), strokeWidth = 2.5f)
         }
     }
 }

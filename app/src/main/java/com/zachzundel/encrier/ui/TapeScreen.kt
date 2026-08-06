@@ -55,7 +55,6 @@ import com.zachzundel.encrier.data.shortDate
 import java.time.LocalDate
 import kotlin.math.abs
 
-private const val EXTRA_BLANK_LINES = 30
 private const val TOUCH_TAP_SLOP_PX = 12f
 
 @OptIn(androidx.compose.ui.ExperimentalComposeUiApi::class)
@@ -81,8 +80,9 @@ fun TapeScreen(vm: TapeViewModel) {
 
     LaunchedEffect(uncommitted) { latchedInk.keys.retainAll(uncommitted) }
 
-    fun contentH() = (rows.size + EXTRA_BLANK_LINES) * lh
-    fun maxScroll() = (contentH() - viewportH).coerceAtLeast(0f)
+    // The last occupied line can never scroll off the top of the screen; the
+    // blank writing area below is bounded by keeping it at the first slot.
+    fun maxScroll() = ((rows.size - 1) * lh).coerceAtLeast(0f)
     fun scrollToLatest() {
         scroll = ((rows.size * lh) - viewportH + lh).coerceIn(0f, maxScroll())
     }
@@ -302,13 +302,16 @@ fun TapeScreen(vm: TapeViewModel) {
             if (active.isNotEmpty()) drawContentStroke(active, scroll)
         }
 
-        HardButton(
-            label = "↓ LATEST",
-            modifier = Modifier
-                .align(Alignment.BottomEnd)
-                .padding(16.dp),
-            onClick = { scrollToLatest() },
-        )
+        // Only offer the jump when the latest line is actually off-screen.
+        if (rows.isNotEmpty() && rows.size * lh - scroll > viewportH + 1f) {
+            HardButton(
+                label = "↓ LATEST",
+                modifier = Modifier
+                    .align(Alignment.BottomEnd)
+                    .padding(16.dp),
+                onClick = { scrollToLatest() },
+            )
+        }
 
         panel?.let { p ->
             ItemPanel(
