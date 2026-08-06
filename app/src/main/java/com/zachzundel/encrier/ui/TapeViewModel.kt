@@ -323,7 +323,7 @@ class TapeViewModel : ViewModel() {
     }
 
     private suspend fun commitLocked() {
-        Log.i("InkTask", "commit: dirty=${dirty.size} pendingChildren=${pendingParent.value.size}")
+        Log.i("Encrier", "commit: dirty=${dirty.size} pendingChildren=${pendingParent.value.size}")
         // GC spawned child lines that received no strokes (spec §5).
         for (lineId in pendingParent.value.keys.toList()) {
             if (dao.strokeCount(lineId) == 0) {
@@ -343,11 +343,11 @@ class TapeViewModel : ViewModel() {
             val candidates = try {
                 recog.recognizeLine(strokes.map { it.points }, tapeWidthPx, lineHeightPx)
             } catch (e: Exception) {
-                Log.i("InkTask", "recognition failed, will retry: ${e.message}")
+                Log.i("Encrier", "recognition failed, will retry: ${e.message}")
                 continue // stays dirty; next idle commit retries
             }
             val text = candidates.firstOrNull()?.trim().orEmpty()
-            Log.i("InkTask", "commit line=$lineId -> \"$text\" (${candidates.size} candidates)")
+            Log.i("Encrier", "commit line=$lineId -> \"$text\" (${candidates.size} candidates)")
             val existing = dao.itemForLine(lineId)
             if (existing != null) {
                 // Last-writer-wins update in place; createdAt untouched (spec §2, §4).
