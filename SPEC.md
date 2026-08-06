@@ -223,7 +223,7 @@ Design changes from v1, in the order they were decided:
   the original ink's right edge (word gap) so the concatenated ink reads
   linearly. Mid-line insertion in text mode is an explicit non-goal — use
   hover reveal for insertions.
-- **Typed corrections.** The panel has the app's one keyboard field: type the
+- **Typed corrections.** The panel has a keyboard field: type the
   intended text, APPLY updates the item and stores a `corrections` row (ink
   snapshot + candidates + corrected text) as recognizer training data. Picking
   a ranked candidate does not record a correction.
@@ -234,8 +234,12 @@ Design changes from v1, in the order they were decided:
 - **Multiple tapes.** Lines belong to a tape; the current tape is persisted
   across launches and shown as the top-bar title (the id-1 default tape
   displays as "encrier"). Tapping the title on the tape view opens a picker
-  card: switch tapes, or type a name to create one — the app's only keyboard
-  input. History reports the current tape only.
+  card: switch tapes, or type a name to create one (keyboard input, like
+  typed corrections). History reports the current tape only.
+- **Editable item date.** The panel's "written aug 6" caption carries two
+  quiet ◂ ▸ nudges that shift `item.createdAt` by ±1 day (panel stays open
+  and refreshes live). The row's meta date and History follow; the tape's
+  day-marker gutters derive from stroke timestamps and deliberately don't.
 
 Device notes: DC-1 ships `persist.log.tag=I` (Log.d is dropped device-wide);
 its digitizer reports ~550Hz. Do not vary only draw-time attributes

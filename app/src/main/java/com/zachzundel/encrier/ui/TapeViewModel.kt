@@ -434,6 +434,19 @@ class TapeViewModel : ViewModel() {
         }
     }
 
+    /**
+     * Shifts the item's listed date by whole days. Keeps the panel open — the
+     * reactive panel refreshes itself, so repeated nudges compose naturally.
+     */
+    fun shiftItemDate(lineId: Long, days: Int) {
+        viewModelScope.launch {
+            mutex.withLock {
+                val cur = dao.itemForLine(lineId) ?: return@withLock
+                dao.updateItem(cur.copy(createdAt = cur.createdAt + days * 86_400_000L))
+            }
+        }
+    }
+
     /** Delete removes the item AND its line + ink; the tape closes the gap. */
     fun deleteItem(lineId: Long) {
         viewModelScope.launch {
