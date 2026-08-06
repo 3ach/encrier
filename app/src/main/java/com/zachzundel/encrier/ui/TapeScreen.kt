@@ -68,6 +68,7 @@ private const val TOUCH_TAP_SLOP_PX = 12f
 fun TapeScreen(vm: TapeViewModel) {
     val rows by vm.rows.collectAsState()
     val currentTapeId by vm.currentTapeId.collectAsState()
+    val scrollRequest by vm.scrollToLineId.collectAsState()
     val cache by vm.strokeCache.collectAsState()
     val uncommitted by vm.uncommitted.collectAsState()
     val overlay by vm.overlayStrokes.collectAsState()
@@ -164,6 +165,16 @@ fun TapeScreen(vm: TapeViewModel) {
     // Rows can shrink out from under the scroll position (tape switch lands
     // its rows a beat after the switch; deletes close gaps): clamp.
     LaunchedEffect(rows) { scroll = scroll.coerceIn(0f, maxScroll()) }
+
+    // Jump to date: put the requested row's top at the top of the viewport.
+    LaunchedEffect(scrollRequest, rows) {
+        val id = scrollRequest ?: return@LaunchedEffect
+        val i = rows.indexOfFirst { it.line.id == id }
+        if (i < 0) return@LaunchedEffect
+        scroll = layoutState.value.topOf(i).coerceIn(0f, maxScroll())
+        android.util.Log.i("Encrier", "jump-to-date: line=$id slot=$i scroll=$scroll")
+        vm.consumeScrollRequest()
+    }
 
     // Lazy-load strokes for the visible line range (spec §2).
     LaunchedEffect(scroll, rows, viewportH) {

@@ -240,6 +240,9 @@ Design changes from v1, in the order they were decided:
   quiet ◂ ▸ nudges that shift `item.createdAt` by ±1 day (panel stays open
   and refreshes live). The row's meta date and History follow; the tape's
   day-marker gutters derive from stroke timestamps and deliberately don't.
+- **Jump to date.** A calendar button on the tape's top bar (left of the
+  clock) opens a notebook card listing the tape's day markers, most recent
+  first; tapping one scrolls that day's first line to the top of the viewport.
 
 Device notes: DC-1 ships `persist.log.tag=I` (Log.d is dropped device-wide);
 its digitizer reports ~550Hz. Do not vary only draw-time attributes
