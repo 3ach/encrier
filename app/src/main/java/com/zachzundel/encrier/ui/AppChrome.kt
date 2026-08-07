@@ -121,14 +121,16 @@ internal fun Tabs() {
                     view = if (view == AppView.SKETCH) AppView.TAPE else AppView.SKETCH
                 },
             )
-            Spacer(Modifier.width(10.dp))
-            ClockButton(
-                selected = view == AppView.HISTORY,
-                onClick = {
-                    closeCards()
-                    view = if (view == AppView.HISTORY) AppView.TAPE else AppView.HISTORY
-                },
-            )
+            if (view != AppView.SKETCH) {
+                Spacer(Modifier.width(10.dp))
+                ClockButton(
+                    selected = view == AppView.HISTORY,
+                    onClick = {
+                        closeCards()
+                        view = if (view == AppView.HISTORY) AppView.TAPE else AppView.HISTORY
+                    },
+                )
+            }
         }
         Box(Modifier.fillMaxWidth().height(1.dp).background(InkMargin))
         Box(Modifier.weight(1f)) {
@@ -143,6 +145,8 @@ internal fun Tabs() {
                     currentTapeId = currentTapeId,
                     onSwitch = { tapeVm.switchTape(it); showTapePicker = false },
                     onCreate = { tapeVm.createTape(it); showTapePicker = false },
+                    onRename = { id, name -> tapeVm.renameTape(id, name) },
+                    onDelete = { tapeVm.deleteTape(it) },
                     modifier = Modifier.align(Alignment.TopCenter).fillMaxWidth().padding(12.dp),
                 )
             }
@@ -152,6 +156,8 @@ internal fun Tabs() {
                     currentPageId = currentPage?.id,
                     onSwitch = { sketchVm.switchPage(it); showPagePicker = false },
                     onCreate = { sketchVm.createPage(it); showPagePicker = false },
+                    onRename = { id, name -> sketchVm.renamePage(id, name) },
+                    onDelete = { sketchVm.deletePage(it) },
                     modifier = Modifier.align(Alignment.TopCenter).fillMaxWidth().padding(12.dp),
                 )
             }
@@ -172,7 +178,7 @@ internal fun Tabs() {
 private fun tapeDisplayName(tape: TapeEntity?): String =
     when {
         tape == null -> "encrier"
-        tape.id == TapeEntity.DEFAULT_ID -> "encrier"
+        tape.id == TapeEntity.DEFAULT_ID && tape.name == "default" -> "encrier"
         else -> tape.name
     }
 
@@ -183,6 +189,8 @@ private fun TapePickerCard(
     currentTapeId: Long,
     onSwitch: (Long) -> Unit,
     onCreate: (String) -> Unit,
+    onRename: (Long, String) -> Unit,
+    onDelete: (Long) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     var newName by rememberSaveable { mutableStateOf("") }
@@ -191,9 +199,14 @@ private fun TapePickerCard(
         verticalArrangement = Arrangement.spacedBy(6.dp),
     ) {
         for (tape in tapes) {
-            SelectableRow(tapeDisplayName(tape), selected = tape.id == currentTapeId) {
-                onSwitch(tape.id)
-            }
+            EditablePickerRow(
+                name = tapeDisplayName(tape),
+                selected = tape.id == currentTapeId,
+                deletable = tape.id != TapeEntity.DEFAULT_ID,
+                onSelect = { onSwitch(tape.id) },
+                onRename = { onRename(tape.id, it) },
+                onDelete = { onDelete(tape.id) },
+            )
         }
         Row(
             Modifier.fillMaxWidth(),
@@ -265,6 +278,8 @@ private fun PagePickerCard(
     currentPageId: Long?,
     onSwitch: (Long) -> Unit,
     onCreate: (String) -> Unit,
+    onRename: (Long, String) -> Unit,
+    onDelete: (Long) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     var newName by rememberSaveable { mutableStateOf("") }
@@ -273,9 +288,14 @@ private fun PagePickerCard(
         verticalArrangement = Arrangement.spacedBy(6.dp),
     ) {
         for (page in pages) {
-            SelectableRow(page.name, selected = page.id == currentPageId) {
-                onSwitch(page.id)
-            }
+            EditablePickerRow(
+                name = page.name,
+                selected = page.id == currentPageId,
+                deletable = page.id != PageEntity.DEFAULT_ID,
+                onSelect = { onSwitch(page.id) },
+                onRename = { onRename(page.id, it) },
+                onDelete = { onDelete(page.id) },
+            )
         }
         Row(
             Modifier.fillMaxWidth(),
@@ -347,6 +367,70 @@ private fun SketchButton(selected: Boolean, onClick: () -> Unit) =
         drawLine(c, Offset(w * 0.3f, h * 0.68f), Offset(w * 0.85f, h * 0.15f), strokeWidth = 2f)
         drawLine(c, Offset(w * 0.3f, h * 0.68f), Offset(w * 0.26f, h * 0.8f), strokeWidth = 2f)
     }
+
+private enum class RowMode { NORMAL, RENAME, CONFIRM }
+
+/** Picker row with quiet rename (field + save) and delete (inline confirm). */
+@Composable
+private fun EditablePickerRow(
+    name: String,
+    selected: Boolean,
+    deletable: Boolean,
+    onSelect: () -> Unit,
+    onRename: (String) -> Unit,
+    onDelete: () -> Unit,
+) {
+    var mode by rememberSaveable(name) { mutableStateOf(RowMode.NORMAL) }
+    var draft by rememberSaveable(name) { mutableStateOf(name) }
+    Row(
+        Modifier.fillMaxWidth(),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        when (mode) {
+            RowMode.NORMAL -> {
+                Box(Modifier.weight(1f)) { SelectableRow(name, selected, onSelect) }
+                RowGlyph("\u270e") { draft = name; mode = RowMode.RENAME }
+                if (deletable) RowGlyph("\u00d7") { mode = RowMode.CONFIRM }
+            }
+            RowMode.RENAME -> {
+                QuietField(
+                    value = draft,
+                    onValueChange = { draft = it },
+                    placeholder = name,
+                    modifier = Modifier.weight(1f),
+                )
+                HardButton("save", onClick = { onRename(draft); mode = RowMode.NORMAL })
+                RowGlyph("\u00d7") { mode = RowMode.NORMAL }
+            }
+            RowMode.CONFIRM -> {
+                Text(
+                    "delete \u201c$name\u201d and everything on it?",
+                    fontFamily = Serif,
+                    fontStyle = FontStyle.Italic,
+                    fontSize = 14.sp,
+                    color = InkBlack,
+                    modifier = Modifier.weight(1f),
+                )
+                HardButton("delete", onClick = { onDelete(); mode = RowMode.NORMAL })
+                HardButton("keep", onClick = { mode = RowMode.NORMAL })
+            }
+        }
+    }
+}
+
+@Composable
+private fun RowGlyph(glyph: String, onClick: () -> Unit) {
+    Text(
+        glyph,
+        fontFamily = Serif,
+        fontSize = 17.sp,
+        color = InkGray,
+        modifier = Modifier
+            .hardClickable(onClick)
+            .padding(horizontal = 10.dp, vertical = 8.dp),
+    )
+}
 
 /** Small toggle button drawing its glyph in the selection-inverted color. */
 @Composable

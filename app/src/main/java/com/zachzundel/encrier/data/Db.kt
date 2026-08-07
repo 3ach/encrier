@@ -133,6 +133,16 @@ interface TapeDao {
     @Query("SELECT * FROM tapes ORDER BY createdAt")
     fun observeTapes(): Flow<List<TapeEntity>>
     @Insert suspend fun insertTape(t: TapeEntity): Long
+    @Query("UPDATE tapes SET name = :name WHERE id = :id")
+    suspend fun renameTape(id: Long, name: String)
+    @Query("DELETE FROM items WHERE lineId IN (SELECT id FROM lines WHERE tapeId = :tapeId)")
+    suspend fun deleteItemsForTape(tapeId: Long)
+    @Query("DELETE FROM strokes WHERE lineId IN (SELECT id FROM lines WHERE tapeId = :tapeId)")
+    suspend fun deleteStrokesForTape(tapeId: Long)
+    @Query("DELETE FROM lines WHERE tapeId = :tapeId")
+    suspend fun deleteLinesForTape(tapeId: Long)
+    @Query("DELETE FROM tapes WHERE id = :id")
+    suspend fun deleteTapeRow(id: Long)
 
     @Insert suspend fun insertCorrection(c: CorrectionEntity): Long
 
@@ -141,6 +151,12 @@ interface TapeDao {
     @Insert suspend fun insertPage(p: PageEntity): Long
     @Query("UPDATE pages SET background = :bg WHERE id = :id")
     suspend fun setPageBackground(id: Long, bg: String)
+    @Query("UPDATE pages SET name = :name WHERE id = :id")
+    suspend fun renamePage(id: Long, name: String)
+    @Query("DELETE FROM page_strokes WHERE pageId = :pageId")
+    suspend fun deleteStrokesForPage(pageId: Long)
+    @Query("DELETE FROM pages WHERE id = :id")
+    suspend fun deletePageRow(id: Long)
     @Query("SELECT * FROM page_strokes WHERE pageId = :pageId ORDER BY id")
     fun observePageStrokes(pageId: Long): Flow<List<PageStrokeEntity>>
     @Insert suspend fun insertPageStroke(s: PageStrokeEntity): Long

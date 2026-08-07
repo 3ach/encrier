@@ -110,6 +110,36 @@ class SketchViewModel(
 
     fun switchPage(id: Long) = session.switchPage(id)
 
+    fun renamePage(id: Long, name: String) {
+        val trimmed = name.trim()
+        if (trimmed.isEmpty()) return
+        viewModelScope.launch {
+            try {
+                dao.renamePage(id, trimmed)
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                Log.i("Encrier", "renamePage failed: ${e.message}")
+            }
+        }
+    }
+
+    /** Deletes a page and its ink. The default page is not deletable. */
+    fun deletePage(id: Long) {
+        if (id == PageEntity.DEFAULT_ID) return
+        viewModelScope.launch {
+            try {
+                if (session.currentPageId.value == id) session.switchPage(PageEntity.DEFAULT_ID)
+                dao.deleteStrokesForPage(id)
+                dao.deletePageRow(id)
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                Log.i("Encrier", "deletePage failed: ${e.message}")
+            }
+        }
+    }
+
     fun createPage(name: String) {
         val trimmed = name.trim()
         if (trimmed.isEmpty()) return

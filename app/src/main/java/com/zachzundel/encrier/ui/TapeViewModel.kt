@@ -134,6 +134,40 @@ class TapeViewModel(
         }
     }
 
+    fun renameTape(id: Long, name: String) {
+        val trimmed = name.trim()
+        if (trimmed.isEmpty()) return
+        viewModelScope.launch {
+            try {
+                dao.renameTape(id, trimmed)
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                Log.i("Encrier", "renameTape failed: ${e.message}")
+            }
+        }
+    }
+
+    /** Deletes a tape and everything on it. The default tape is not deletable. */
+    fun deleteTape(id: Long) {
+        if (id == TapeEntity.DEFAULT_ID) return
+        viewModelScope.launch {
+            try {
+                mutex.withLock {
+                    if (session.currentTapeId.value == id) switchTape(TapeEntity.DEFAULT_ID)
+                    dao.deleteItemsForTape(id)
+                    dao.deleteStrokesForTape(id)
+                    dao.deleteLinesForTape(id)
+                    dao.deleteTapeRow(id)
+                }
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                Log.i("Encrier", "deleteTape failed: ${e.message}")
+            }
+        }
+    }
+
     /**
      * Distinct local dates that have any ink (most recent first), each paired
      * with the line id of the first row of that date's latest run. Drives
