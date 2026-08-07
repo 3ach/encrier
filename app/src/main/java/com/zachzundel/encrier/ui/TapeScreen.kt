@@ -93,13 +93,6 @@ fun TapeScreen(vm: TapeViewModel) {
             .mapValues { (_, ts) -> dayMarkerLabel(ts) }
     }
 
-    // Child completion ratios for parent rows.
-    val childStats: Map<Long, Pair<Int, Int>> = remember(rows) {
-        rows.mapNotNull { it.item }.filter { it.parentId != null }
-            .groupBy { it.parentId!! }
-            .mapValues { (_, kids) -> kids.count { it.status == ItemEntity.DONE } to kids.size }
-    }
-
     // Variable-height layout: tight rows for committed text, writing height for
     // ink/blank rows and for the hover-grown or ink-latched row.
     val layout = run {
@@ -133,7 +126,6 @@ fun TapeScreen(vm: TapeViewModel) {
 
     LaunchedEffect(lh) {
         vm.lineHeightPx = lh
-        vm.gestureMinRunPx = with(density) { Tunables.GESTURE_MIN_RUN_DP.dp.toPx() }
         vm.tapMaxLenPx = with(density) { Tunables.TAP_MAX_LEN_DP.dp.toPx() }
         vm.amendGapPx = with(density) { Tunables.AMEND_GAP_DP.dp.toPx() }
     }
@@ -312,7 +304,6 @@ fun TapeScreen(vm: TapeViewModel) {
                 // Bottom rule.
                 drawLine(InkFaint, Offset(0f, top + rowH), Offset(size.width, top + rowH), strokeWidth = 1f)
 
-                val isChild = row.isPendingChild || row.item?.parentId != null
                 val pending = row.line.id in uncommitted
                 val item = row.item
                 val showInk = showsInk(item, pending, latchedInk[row.line.id] == true, hoverSlot == i)
@@ -333,12 +324,10 @@ fun TapeScreen(vm: TapeViewModel) {
                     )
                 }
 
-                if (isChild) drawConnector(top + markerInset, rowH - markerInset)
-
                 if (!showInk) {
                     drawItemRow(
-                        tm, item!!, childStats[item.id], top + markerInset,
-                        rowH - markerInset, isChild, vm.textBounds,
+                        tm, item!!, top + markerInset,
+                        rowH - markerInset, vm.textBounds,
                     )
                     // Amendment strokes stay visible where they were written.
                     for (s in amendDisplay[row.line.id].orEmpty()) drawInkStroke(s.points, top)

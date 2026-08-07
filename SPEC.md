@@ -263,3 +263,10 @@ Each page has a name and a background — blank, dot grid, or line grid —
 switchable from the top bar; pages are created/switched from a picker on the
 page title, mirroring tapes. Ink lives in page coordinates in `page_strokes`
 (schema v3); the current page persists across launches.
+
+## 13. Removed (Aug 2026)
+
+The elbow child-gesture and the parent/child item hierarchy are gone —
+detection never got reliable enough with real handwriting, and flat lists
+proved sufficient. `items.parentId` remains in the schema, unused. Dates
+bucket by device-local time (the earlier hardcoded zone is reverted).

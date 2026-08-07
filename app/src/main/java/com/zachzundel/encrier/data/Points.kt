@@ -64,8 +64,8 @@ fun decodeCandidates(json: String): List<String> {
 
 const val DAY_MS = 86_400_000L
 
-/** The tape lives on the owner's wall clock, not the device clock (which runs UTC). */
-val TAPE_ZONE: ZoneId = ZoneId.of("America/Los_Angeles")
+/** Device time is authoritative for all date bucketing. */
+val TAPE_ZONE: ZoneId = ZoneId.systemDefault()
 
 fun localDate(ts: Long): LocalDate =
     Instant.ofEpochMilli(ts).atZone(TAPE_ZONE).toLocalDate()

@@ -21,7 +21,6 @@ import com.zachzundel.encrier.data.encodePoints
 import com.zachzundel.encrier.data.encodeStrokes
 import com.zachzundel.encrier.data.decodePoints
 import com.zachzundel.encrier.data.localDate
-import com.zachzundel.encrier.gesture.Elbow
 import com.zachzundel.encrier.gesture.RowMarks
 import com.zachzundel.encrier.ink.Recognition
 import java.time.LocalDate
@@ -51,23 +50,16 @@ class TapeViewModel(
 ) : ViewModel() {
 
     data class RenderStroke(val points: List<InkPoint>, val id: Long = 0L) // line-relative
-    data class TapeRow(val line: LineRow, val item: ItemEntity?, val isPendingChild: Boolean)
+    data class TapeRow(val line: LineRow, val item: ItemEntity?)
 
     // Set by the UI once it knows its geometry.
     var lineHeightPx = 1f
     var tapeWidthPx = 1f
-    var gestureMinRunPx = 0f
     var tapMaxLenPx = 0f
     var amendGapPx = 0f
 
     /** Rendered text span [x0, x1] per committed line, reported by the UI each draw. */
     val textBounds = ConcurrentHashMap<Long, FloatArray>()
-
-    /** Spawned-but-uncommitted child lines: lineId -> parent item id. In-memory by design. */
-    private val pendingParent = MutableStateFlow<Map<Long, Long>>(emptyMap())
-
-    /** Spawn time per pending child, so the GC can age-gate empty ones. */
-    private val spawnedAt = mutableMapOf<Long, Long>()
 
     /** Lines with ink written since their last recognition commit ("pending" in spec terms). */
     private val _uncommitted = MutableStateFlow<Set<Long>>(emptySet())
@@ -103,10 +95,9 @@ class TapeViewModel(
         combine(
             session.currentTapeId.flatMapLatest { dao.observeLines(it) },
             dao.observeItems(),
-            pendingParent,
-        ) { lines, items, pending ->
+        ) { lines, items ->
             val byLine = items.associateBy { it.lineId }
-            lines.map { TapeRow(it, byLine[it.id], pending.containsKey(it.id)) }
+            lines.map { TapeRow(it, byLine[it.id]) }
         }.stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
 
     fun switchTape(id: Long) {
@@ -329,24 +320,6 @@ class TapeViewModel(
         if (anchored && pathLength(points) < tapMaxLenPx) {
             openPanelForLine(startRow!!.line.id)
             return false
-        }
-
-        // Gesture detection runs BEFORE handwriting routing (spec §5).
-        if (anchored) {
-            val anchorBottom = layout.topOf(startSlot) + layout.heightOf(startSlot)
-            val m = Elbow.detect(points, anchorBottom, lh, gestureMinRunPx)
-            if (m.matched) {
-                spawnChild(startRow!!.line.id, now)
-                scheduleIdleCommit()
-                return false
-            }
-            if (Tunables.GESTURE_DEBUG) {
-                Log.i(
-                    "ElbowDebug",
-                    "rejected (${m.reason}): drop=%.1fpx turn=%.1f° run=%.1fpx"
-                        .format(m.dropPastRulePx, m.turnDeg, m.runPx)
-                )
-            }
         }
 
         // Strike-out → DONE; scribble-out → DELETE. Neither stores ink. Tight
@@ -726,23 +699,6 @@ class TapeViewModel(
         }
     }
 
-    private suspend fun spawnChild(anchorLineId: Long, now: Long) {
-        val rowsNow = rows.value
-        val idx = rowsNow.indexOfFirst { it.line.id == anchorLineId }
-        if (idx < 0) return
-        val anchor = rowsNow[idx]
-        val parentItem = anchor.item ?: return
-        val next = rowsNow.getOrNull(idx + 1)
-        val seq =
-            if (next != null) (anchor.line.seq + next.line.seq) / 2.0 else anchor.line.seq + 1.0
-        val id = dao.insertLine(
-            LineEntity(seq = seq, createdAt = now, tapeId = session.currentTapeId.value)
-        )
-        pendingParent.update { it + (id to parentItem.id) }
-        spawnedAt[id] = now
-        _strokeCache.update { it + (id to emptyList()) }
-    }
-
     private fun scheduleIdleCommit() {
         idleJob?.cancel()
         idleJob = viewModelScope.launch {
@@ -773,23 +729,8 @@ class TapeViewModel(
     }
 
     private suspend fun commitLocked() {
-        Log.i("Encrier", "commit: dirty=${dirty.size} pendingChildren=${pendingParent.value.size}")
-        val now = System.currentTimeMillis()
+        Log.i("Encrier", "commit: dirty=${dirty.size}")
         var retryNeeded = false
-        // GC spawned child lines that received no strokes (spec §5) — but only
-        // once old enough that a slow writer can't still be aiming at them.
-        for (lineId in pendingParent.value.keys.toList()) {
-            if (dao.strokeCount(lineId) == 0) {
-                if (now - (spawnedAt[lineId] ?: 0L) < 2 * Tunables.IDLE_COMMIT_MS) {
-                    retryNeeded = true // re-check once it has aged
-                    continue
-                }
-                dao.deleteLine(lineId)
-                pendingParent.update { it - lineId }
-                spawnedAt.remove(lineId)
-                clearLineState(lineId)
-            }
-        }
         for (lineId in dirty.toList()) {
             val strokes = _strokeCache.value[lineId].orEmpty()
             if (strokes.isEmpty()) {
@@ -832,15 +773,12 @@ class TapeViewModel(
                         lineId = lineId,
                         text = text,
                         candidatesJson = encodeCandidates(candidates),
-                        parentId = pendingParent.value[lineId],
                         status = ItemEntity.OPEN,
                         // The listed date is when the ink was written, not when
                         // recognition got around to committing it.
                         createdAt = dao.firstInkAt(lineId) ?: System.currentTimeMillis(),
                     )
                 )
-                pendingParent.update { it - lineId }
-                spawnedAt.remove(lineId)
             }
             // Blank recognition: no item, ink retained (spec §4).
             clearPendingRecognition(lineId)

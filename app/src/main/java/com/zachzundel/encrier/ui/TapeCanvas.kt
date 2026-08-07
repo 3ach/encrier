@@ -14,15 +14,13 @@ import com.zachzundel.encrier.data.shortDate
 internal fun DrawScope.drawItemRow(
     tm: TextMeasurer,
     item: ItemEntity,
-    childStat: Pair<Int, Int>?,
     top: Float,
     rowH: Float,
-    isChild: Boolean,
     boundsOut: MutableMap<Long, FloatArray>,
 ) {
     val done = item.status == ItemEntity.DONE
     val dropped = item.status == ItemEntity.DROPPED
-    val textX = if (isChild) 84.dp.toPx() else 54.dp.toPx()
+    val textX = 54.dp.toPx()
     // TextMeasurer's layout cache ignores draw-only attributes (color,
     // textDecoration) but returns layouts that still carry them — a struck-
     // through layout would be replayed after REOPEN. Measure with a constant
@@ -50,7 +48,6 @@ internal fun DrawScope.drawItemRow(
     }
 
     val meta = buildString {
-        childStat?.let { (d, t) -> append(d).append("/").append(t).append("  ") }
         append(shortDate(item.createdAt))
     }
     val metaLayout = tm.measure(
@@ -75,10 +72,3 @@ internal fun DrawScope.drawInkStroke(points: List<InkPoint>, top: Float) =
 internal fun DrawScope.drawContentStroke(points: List<InkPoint>, scroll: Float) =
     drawStroke(points, { Offset(it.x, it.y - scroll) })
 
-/** Crisp connector glyph (└─) marking a spawned child line (spec §5). */
-internal fun DrawScope.drawConnector(top: Float, rowH: Float) {
-    val x = 60.dp.toPx()
-    val midY = top + rowH * 0.55f
-    drawLine(InkGray, Offset(x, top + rowH * 0.1f), Offset(x, midY), strokeWidth = 2f)
-    drawLine(InkGray, Offset(x, midY), Offset(x + 18.dp.toPx(), midY), strokeWidth = 2f)
-}
