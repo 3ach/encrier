@@ -300,7 +300,10 @@ fun TapeScreen(vm: TapeViewModel) {
             for ((i, row) in rows.withIndex()) {
                 val top = layout.tops[i] - scroll
                 val rowH = layout.heights[i]
-                if (top + rowH < -lh || top > size.height + lh) continue
+                // Rows starting below the fold draw nothing — and their text MUST not
+                // draw: drawText with topLeft.y past the canvas bottom computes
+                // negative constraints and throws.
+                if (top + rowH < -lh || top > size.height) continue
 
                 // Bottom rule.
                 drawLine(InkFaint, Offset(0f, top + rowH), Offset(size.width, top + rowH), strokeWidth = 1f)

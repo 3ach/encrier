@@ -4,3 +4,6 @@ local.properties
 .kotlin/
 *.iml
 .idea/
+upload-keystore.jks
+keystore.properties
+play/encrier-1.0.aab
