@@ -101,7 +101,6 @@ internal fun Tabs() {
                 BackgroundButton(PageEntity.DOTS, bg) { sketchVm.setBackground(it) }
                 Spacer(Modifier.width(6.dp))
                 BackgroundButton(PageEntity.LINES, bg) { sketchVm.setBackground(it) }
-                Spacer(Modifier.width(14.dp))
             }
             if (view == AppView.TAPE) {
                 CalendarButton(
@@ -114,15 +113,7 @@ internal fun Tabs() {
                 )
                 Spacer(Modifier.width(10.dp))
             }
-            SketchButton(
-                selected = view == AppView.SKETCH,
-                onClick = {
-                    closeCards()
-                    view = if (view == AppView.SKETCH) AppView.TAPE else AppView.SKETCH
-                },
-            )
             if (view != AppView.SKETCH) {
-                Spacer(Modifier.width(10.dp))
                 ClockButton(
                     selected = view == AppView.HISTORY,
                     onClick = {
@@ -131,6 +122,15 @@ internal fun Tabs() {
                     },
                 )
             }
+            Spacer(Modifier.width(10.dp))
+            // Anchored last so it never hops; shows the view it takes you TO.
+            ViewToggleButton(
+                inSketch = view == AppView.SKETCH,
+                onClick = {
+                    closeCards()
+                    view = if (view == AppView.SKETCH) AppView.TAPE else AppView.SKETCH
+                },
+            )
         }
         Box(Modifier.fillMaxWidth().height(1.dp).background(InkMargin))
         Box(Modifier.weight(1f)) {
@@ -350,22 +350,35 @@ private fun BackgroundButton(bg: String, current: String?, onPick: (String) -> U
         }
     }
 
-/** Pencil-over-page glyph for the sketch view toggle. */
+/**
+ * View toggle, anchored at the end of the bar. Shows the destination: a
+ * pencil-over-page when the sketch view is a tap away, a task list when the
+ * tape is.
+ */
 @Composable
-private fun SketchButton(selected: Boolean, onClick: () -> Unit) =
-    GlyphButton(selected, onClick) { c ->
+private fun ViewToggleButton(inSketch: Boolean, onClick: () -> Unit) =
+    GlyphButton(selected = false, onClick = onClick) { c ->
         val w = size.width
         val h = size.height
-        drawRoundRect(
-            color = c,
-            topLeft = Offset(w * 0.08f, h * 0.05f),
-            size = Size(w * 0.7f, h * 0.9f),
-            cornerRadius = CornerRadius(3f, 3f),
-            style = Stroke(width = 2f),
-        )
-        // Pencil diagonal across the page.
-        drawLine(c, Offset(w * 0.3f, h * 0.68f), Offset(w * 0.85f, h * 0.15f), strokeWidth = 2f)
-        drawLine(c, Offset(w * 0.3f, h * 0.68f), Offset(w * 0.26f, h * 0.8f), strokeWidth = 2f)
+        if (inSketch) {
+            // Task list: dot + rule, three times.
+            for (i in 0..2) {
+                val y = h * (0.2f + 0.3f * i)
+                drawCircle(c, radius = 1.8f, center = Offset(w * 0.14f, y))
+                drawLine(c, Offset(w * 0.32f, y), Offset(w * 0.92f, y), strokeWidth = 2f)
+            }
+        } else {
+            drawRoundRect(
+                color = c,
+                topLeft = Offset(w * 0.08f, h * 0.05f),
+                size = Size(w * 0.7f, h * 0.9f),
+                cornerRadius = CornerRadius(3f, 3f),
+                style = Stroke(width = 2f),
+            )
+            // Pencil diagonal across the page.
+            drawLine(c, Offset(w * 0.3f, h * 0.68f), Offset(w * 0.85f, h * 0.15f), strokeWidth = 2f)
+            drawLine(c, Offset(w * 0.3f, h * 0.68f), Offset(w * 0.26f, h * 0.8f), strokeWidth = 2f)
+        }
     }
 
 private enum class RowMode { NORMAL, RENAME, CONFIRM }
