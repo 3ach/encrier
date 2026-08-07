@@ -18,7 +18,7 @@ object Graph {
         db = Room.databaseBuilder(context, InkDb::class.java, "encrier.db")
             .addMigrations(InkDb.MIGRATION_1_2, InkDb.MIGRATION_2_3)
             .build()
-        recognition = Recognition()
+        recognition = Recognition(context)
         session = TapeSession(context)
     }
 

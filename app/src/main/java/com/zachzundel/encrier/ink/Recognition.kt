@@ -1,5 +1,6 @@
 package com.zachzundel.encrier.ink
 
+import android.content.Context
 import com.google.mlkit.common.model.DownloadConditions
 import com.google.mlkit.common.model.RemoteModelManager
 import com.google.mlkit.vision.digitalink.DigitalInkRecognition
@@ -18,7 +19,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.tasks.await
 
-class Recognition {
+class Recognition(context: Context) {
     sealed interface ModelState {
         data object Checking : ModelState
         data object Downloading : ModelState
@@ -28,6 +29,10 @@ class Recognition {
 
     // App-lifetime scope: the model download must not die with a composable.
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
+
+    // Once the model has been verified downloaded, later launches skip the
+    // blocking gate and re-verify silently in the background.
+    private val prefs = context.getSharedPreferences("encrier_prefs", Context.MODE_PRIVATE)
 
     private val model =
         DigitalInkRecognitionModel.builder(DigitalInkRecognitionModelIdentifier.EN_US).build()
@@ -39,21 +44,32 @@ class Recognition {
 
     fun ensureModel() {
         if (state.value == ModelState.Ready) return
+        if (prefs.getBoolean(KEY_MODEL_VERIFIED, false)) state.value = ModelState.Ready
         scope.launch {
-            state.value = ModelState.Checking
+            if (state.value != ModelState.Ready) state.value = ModelState.Checking
             try {
                 val mgr = RemoteModelManager.getInstance()
                 if (!mgr.isModelDownloaded(model).await()) {
+                    prefs.edit().putBoolean(KEY_MODEL_VERIFIED, false).apply()
                     state.value = ModelState.Downloading
                     mgr.download(model, DownloadConditions.Builder().build()).await()
                 }
+                prefs.edit().putBoolean(KEY_MODEL_VERIFIED, true).apply()
                 state.value = ModelState.Ready
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {
-                state.value = ModelState.Failed(e.message ?: "unknown error")
+                // An optimistic Ready stands: the model was verified before,
+                // and recognition itself retries if it's truly gone.
+                if (state.value != ModelState.Ready) {
+                    state.value = ModelState.Failed(e.message ?: "unknown error")
+                }
             }
         }
+    }
+
+    private companion object {
+        const val KEY_MODEL_VERIFIED = "modelVerified"
     }
 
     /** One Ink per line, line-relative coordinates, per spec §4. Returns ranked candidates. */
