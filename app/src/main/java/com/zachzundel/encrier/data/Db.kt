@@ -104,7 +104,7 @@ data class LineRow(
 )
 
 @Dao
-interface TapeDao {
+interface NotebookDao {
     @Insert suspend fun insertLine(l: LineEntity): Long
     @Query("DELETE FROM lines WHERE id = :id") suspend fun deleteLine(id: Long)
     @Query(
@@ -205,7 +205,7 @@ interface TapeDao {
     exportSchema = false,
 )
 abstract class InkDb : RoomDatabase() {
-    abstract fun dao(): TapeDao
+    abstract fun dao(): NotebookDao
 
     companion object {
         val MIGRATION_1_2 = object : Migration(1, 2) {

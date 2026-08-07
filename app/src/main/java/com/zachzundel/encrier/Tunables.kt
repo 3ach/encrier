@@ -6,7 +6,7 @@ object Tunables {
     const val TEXT_ROW_DP = 34f           // tight height for committed (typed) rows
     const val DAY_MARKER_INSET_DP = 14f   // extra height on tight rows carrying a day marker
     const val IDLE_COMMIT_MS = 2000L
-    const val GESTURE_DEBUG = true // log strike/scribble rejections for tuning
+    const val MARKS_DEBUG = true // log strike/scribble rejections for tuning
 
     // Interaction geometry.
     const val TOUCH_TAP_SLOP_DP = 12f      // touch movement beyond this is a scroll, not a tap
@@ -30,5 +30,5 @@ object Tunables {
     const val STRIKE_MIN_COVER = 0.6f       // horizontal overlap with text span, fraction
     const val STRIKE_MAX_HEIGHT_FRAC = 0.4f // × lineHeight max vertical extent
     const val SCRIBBLE_MIN_COVER = 0.4f
-    const val SCRIBBLE_MIN_REVERSALS = 4    // horizontal direction changes
+    const val SCRIBBLE_MIN_REVERSALS = 4    // direction changes on either axis
 }

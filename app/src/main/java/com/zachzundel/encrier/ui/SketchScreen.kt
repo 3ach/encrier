@@ -125,11 +125,9 @@ fun SketchScreen(vm: SketchViewModel) {
                 else -> Unit // blank
             }
 
-            for (s in strokes) {
-                drawStroke(s.points, { Offset(it.x, it.y - scroll) })
-            }
-            for (s in overlay) drawStroke(s, { Offset(it.x, it.y - scroll) })
-            if (active.size > 1) drawStroke(active, { Offset(it.x, it.y - scroll) })
+            for (s in strokes) drawStroke(s.points, dy = -scroll)
+            for (s in overlay) drawStroke(s, dy = -scroll)
+            if (active.size > 1) drawStroke(active, dy = -scroll)
 
             eraserPos?.let { pos ->
                 drawCircle(InkGray, radius = eraseRadiusPx, center = pos, style = Stroke(width = 1.5f))

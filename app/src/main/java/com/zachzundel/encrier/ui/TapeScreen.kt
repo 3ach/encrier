@@ -24,6 +24,7 @@ import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.PathEffect
+import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.input.pointer.PointerEventType
 import androidx.compose.ui.input.pointer.PointerType
@@ -32,6 +33,7 @@ import androidx.compose.ui.input.pointer.motionEventSpy
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.text.TextMeasurer
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.drawText
 import androidx.compose.ui.text.font.FontStyle
@@ -43,6 +45,7 @@ import com.zachzundel.encrier.data.InkPoint
 import com.zachzundel.encrier.data.ItemEntity
 import com.zachzundel.encrier.data.TAPE_ZONE
 import com.zachzundel.encrier.data.dayMarkerLabel
+import com.zachzundel.encrier.data.shortDate
 import kotlin.math.abs
 
 /**
@@ -150,7 +153,6 @@ fun TapeScreen(vm: TapeViewModel) {
         val i = rows.indexOfFirst { it.line.id == id }
         if (i < 0) return@LaunchedEffect
         scroll = layoutState.value.topOf(i).coerceIn(0f, maxScroll())
-        Log.i("Encrier", "jump-to-date: line=$id slot=$i scroll=$scroll")
         vm.consumeScrollRequest()
     }
 
@@ -213,7 +215,6 @@ fun TapeScreen(vm: TapeViewModel) {
                         val stylusLike =
                             down.type == PointerType.Stylus || down.type == PointerType.Eraser
                         if (stylusLike) {
-                            Log.i("EraserDebug", "down type=${down.type} barrel=${barrelHeld.value}")
                         }
                         if (down.type == PointerType.Eraser ||
                             (stylusLike && barrelHeld.value)
@@ -330,9 +331,9 @@ fun TapeScreen(vm: TapeViewModel) {
                         rowH - markerInset, vm.textBounds,
                     )
                     // Amendment strokes stay visible where they were written.
-                    for (s in amendDisplay[row.line.id].orEmpty()) drawInkStroke(s.points, top)
+                    for (s in amendDisplay[row.line.id].orEmpty()) drawStroke(s.points, dy = top)
                 } else {
-                    for (s in cache[row.line.id].orEmpty()) drawInkStroke(s.points, top)
+                    for (s in cache[row.line.id].orEmpty()) drawStroke(s.points, dy = top)
                 }
                 if (pending) {
                     drawRoundRect(
@@ -354,8 +355,8 @@ fun TapeScreen(vm: TapeViewModel) {
                 yb += lh
             }
 
-            for (strokePoints in overlay) drawContentStroke(strokePoints, scroll)
-            if (active.isNotEmpty()) drawContentStroke(active, scroll)
+            for (strokePoints in overlay) drawStroke(strokePoints, dy = -scroll)
+            if (active.isNotEmpty()) drawStroke(active, dy = -scroll)
 
             eraserPos?.let { pos ->
                 drawCircle(InkGray, radius = eraseRadiusPx, center = pos, style = Stroke(width = 1.5f))
@@ -387,3 +388,52 @@ fun TapeScreen(vm: TapeViewModel) {
     }
 }
 
+
+private fun DrawScope.drawItemRow(
+    tm: TextMeasurer,
+    item: ItemEntity,
+    top: Float,
+    rowH: Float,
+    boundsOut: MutableMap<Long, FloatArray>,
+) {
+    val done = item.status == ItemEntity.DONE
+    val dropped = item.status == ItemEntity.DROPPED
+    val textX = 54.dp.toPx()
+    // TextMeasurer's layout cache ignores draw-only attributes (color,
+    // textDecoration) but returns layouts that still carry them — a struck-
+    // through layout would be replayed after REOPEN. Measure with a constant
+    // style; apply color at draw time and the strike as an explicit line.
+    val layout = tm.measure(
+        item.text,
+        style = TextStyle(fontSize = 16.sp, fontFamily = Serif),
+        maxLines = 1,
+    )
+    boundsOut[item.lineId] = floatArrayOf(textX, textX + layout.size.width)
+    val textTop = top + (rowH - layout.size.height) / 2f
+    drawText(
+        layout,
+        color = if (dropped) InkGray else InkBlack,
+        topLeft = Offset(textX, textTop),
+    )
+    if (done) {
+        val cy = textTop + layout.size.height / 2f
+        drawLine(
+            InkBlack,
+            Offset(textX - 2.dp.toPx(), cy),
+            Offset(textX + layout.size.width + 2.dp.toPx(), cy),
+            strokeWidth = 2.5f,
+        )
+    }
+    val metaLayout = tm.measure(
+        shortDate(item.createdAt),
+        style = TextStyle(color = InkGray, fontSize = 11.sp, fontFamily = Mono),
+        maxLines = 1,
+    )
+    drawText(
+        metaLayout,
+        topLeft = Offset(
+            size.width - metaLayout.size.width - 12.dp.toPx(),
+            top + (rowH - metaLayout.size.height) / 2f,
+        ),
+    )
+}

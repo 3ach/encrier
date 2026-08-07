@@ -14,14 +14,14 @@ import com.zachzundel.encrier.data.LineEntity
 import com.zachzundel.encrier.data.LineRow
 import com.zachzundel.encrier.data.StrokeEntity
 import com.zachzundel.encrier.data.TAPE_ZONE
-import com.zachzundel.encrier.data.TapeDao
+import com.zachzundel.encrier.data.NotebookDao
 import com.zachzundel.encrier.data.TapeEntity
 import com.zachzundel.encrier.data.encodeCandidates
 import com.zachzundel.encrier.data.encodePoints
 import com.zachzundel.encrier.data.encodeStrokes
 import com.zachzundel.encrier.data.decodePoints
 import com.zachzundel.encrier.data.localDate
-import com.zachzundel.encrier.gesture.RowMarks
+import com.zachzundel.encrier.ink.RowMarks
 import com.zachzundel.encrier.ink.Recognition
 import java.time.LocalDate
 import java.util.concurrent.ConcurrentHashMap
@@ -44,7 +44,7 @@ import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 
 class TapeViewModel(
-    private val dao: TapeDao = Graph.db.dao(),
+    private val dao: NotebookDao = Graph.db.dao(),
     private val recog: Recognition = Graph.recognition,
     private val session: TapeSession = Graph.session,
 ) : ViewModel() {
@@ -174,7 +174,6 @@ class TapeViewModel(
     val scrollToLineId: StateFlow<Long?> = _scrollToLineId.asStateFlow()
 
     fun requestScrollTo(lineId: Long) {
-        Log.i("Encrier", "jump-to-date: requested line=$lineId")
         _scrollToLineId.value = lineId
     }
 
@@ -340,7 +339,7 @@ class TapeViewModel(
                 textX0 = b[0],
                 textX1 = b[1],
             )
-            if (Tunables.GESTURE_DEBUG && v.kind == RowMarks.Kind.NONE) {
+            if (Tunables.MARKS_DEBUG && v.kind == RowMarks.Kind.NONE) {
                 Log.i(
                     "MarksDebug",
                     "slot=$s none (${v.reason}): cover=%.2f hf=%.2f xRev=%d yRev=%d"

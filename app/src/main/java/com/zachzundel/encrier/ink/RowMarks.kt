@@ -1,4 +1,4 @@
-package com.zachzundel.encrier.gesture
+package com.zachzundel.encrier.ink
 
 import com.zachzundel.encrier.Tunables
 import com.zachzundel.encrier.data.InkPoint

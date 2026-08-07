@@ -9,7 +9,7 @@ import com.zachzundel.encrier.Tunables
 import com.zachzundel.encrier.data.InkPoint
 import com.zachzundel.encrier.data.PageEntity
 import com.zachzundel.encrier.data.PageStrokeEntity
-import com.zachzundel.encrier.data.TapeDao
+import com.zachzundel.encrier.data.NotebookDao
 import com.zachzundel.encrier.data.decodePoints
 import com.zachzundel.encrier.data.encodePoints
 import kotlin.math.hypot
@@ -29,7 +29,7 @@ import kotlinx.coroutines.launch
 
 /** Free sketch pages: whiteboard ink in page coordinates, no recognition. */
 class SketchViewModel(
-    private val dao: TapeDao = Graph.db.dao(),
+    private val dao: NotebookDao = Graph.db.dao(),
     private val session: TapeSession = Graph.session,
 ) : ViewModel() {
 

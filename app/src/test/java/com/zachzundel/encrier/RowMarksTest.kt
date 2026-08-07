@@ -1,7 +1,7 @@
 package com.zachzundel.encrier
 
 import com.zachzundel.encrier.data.InkPoint
-import com.zachzundel.encrier.gesture.RowMarks
+import com.zachzundel.encrier.ink.RowMarks
 import org.junit.Assert.assertEquals
 import org.junit.Test
 

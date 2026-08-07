@@ -27,7 +27,7 @@ import com.zachzundel.encrier.Graph
 import com.zachzundel.encrier.TapeSession
 import com.zachzundel.encrier.data.DAY_MS
 import com.zachzundel.encrier.data.ItemEntity
-import com.zachzundel.encrier.data.TapeDao
+import com.zachzundel.encrier.data.NotebookDao
 import com.zachzundel.encrier.data.shortDate
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.SharingStarted
@@ -36,7 +36,7 @@ import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.stateIn
 
 class HistoryViewModel(
-    private val dao: TapeDao = Graph.db.dao(),
+    private val dao: NotebookDao = Graph.db.dao(),
     private val session: TapeSession = Graph.session,
 ) : ViewModel() {
     @OptIn(ExperimentalCoroutinesApi::class)
