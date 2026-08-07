@@ -1,0 +1,59 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- The tape, stylized: checkbox + handwriting squiggle per row, first row
+     struck through. Ink on paper, faint rules — the app in one glyph. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+
+    <!-- Row separators -->
+    <path
+        android:pathData="M24,44.5 L84,44.5"
+        android:strokeColor="#D4D4D4"
+        android:strokeWidth="1.5" />
+    <path
+        android:pathData="M24,64.5 L84,64.5"
+        android:strokeColor="#D4D4D4"
+        android:strokeWidth="1.5" />
+
+    <!-- Checkboxes -->
+    <path
+        android:pathData="M25.5,29.5 h9 v9 h-9 z"
+        android:strokeColor="#1A1A1A"
+        android:strokeWidth="2.5"
+        android:strokeLineJoin="round" />
+    <path
+        android:pathData="M25.5,49.5 h9 v9 h-9 z"
+        android:strokeColor="#1A1A1A"
+        android:strokeWidth="2.5"
+        android:strokeLineJoin="round" />
+    <path
+        android:pathData="M25.5,69.5 h9 v9 h-9 z"
+        android:strokeColor="#1A1A1A"
+        android:strokeWidth="2.5"
+        android:strokeLineJoin="round" />
+
+    <!-- Handwriting squiggles -->
+    <path
+        android:pathData="M42,34 c3,-5.5 7,-5.5 10,0 c3,5.5 7,5.5 10,0 c3,-5.5 7,-5.5 10,0 c3,5.5 7,5.5 10,0"
+        android:strokeColor="#1A1A1A"
+        android:strokeWidth="2.5"
+        android:strokeLineCap="round" />
+    <!-- Strike through the first row's writing -->
+    <path
+        android:pathData="M40,33 L84,35.5"
+        android:strokeColor="#1A1A1A"
+        android:strokeWidth="2.5"
+        android:strokeLineCap="round" />
+    <path
+        android:pathData="M42,54 c3,-5.5 7,-5.5 10,0 c3,5.5 7,5.5 10,0 c3,-5.5 7,-5.5 10,0 c3,5.5 7,5.5 10,0"
+        android:strokeColor="#1A1A1A"
+        android:strokeWidth="2.5"
+        android:strokeLineCap="round" />
+    <path
+        android:pathData="M42,74 c3,-5.5 7,-5.5 10,0 c3,5.5 7,5.5 10,0"
+        android:strokeColor="#1A1A1A"
+        android:strokeWidth="2.5"
+        android:strokeLineCap="round" />
+</vector>
