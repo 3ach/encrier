@@ -254,3 +254,12 @@ Architecture: root package holds app plumbing (`Graph`, `TapeSession`,
 date helpers; `gesture/` and `ink/` are pure/model layers; `ui/` splits the
 tape into `TapeScreen` (state + input), `TapeCanvas`, `ItemPanel`,
 `AppChrome`, with shared `InkDraw`/`StylusInput`/`Theme` primitives.
+
+## 12. Sketch pages (added Aug 2026)
+
+Free-drawing notebook pages alongside the task tapes: stylus draws raw ink
+(no recognition), finger scrolls, the barrel button erases whole strokes.
+Each page has a name and a background — blank, dot grid, or line grid —
+switchable from the top bar; pages are created/switched from a picker on the
+page title, mirroring tapes. Ink lives in page coordinates in `page_strokes`
+(schema v3); the current page persists across launches.

@@ -31,6 +31,9 @@ object Tunables {
     // the original ink — stored strokes are shifted past the ink's right edge).
     const val AMEND_GAP_DP = 24f
 
+    // Sketch pages: dot/line grid pitch.
+    const val SKETCH_GRID_DP = 28f
+
     // Strike-out (→ DONE) and scribble-out (→ DELETE) over a committed row's text.
     const val STRIKE_MIN_COVER = 0.6f       // horizontal overlap with text span, fraction
     const val STRIKE_MAX_HEIGHT_FRAC = 0.4f // × lineHeight max vertical extent

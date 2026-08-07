@@ -37,20 +37,32 @@ import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.zachzundel.encrier.data.PageEntity
 import com.zachzundel.encrier.data.TAPE_ZONE
 import com.zachzundel.encrier.data.TapeEntity
 import com.zachzundel.encrier.data.dayMarkerLabel
 import java.time.LocalDate
 
+private enum class AppView { TAPE, SKETCH, HISTORY }
+
 @Composable
 internal fun Tabs() {
-    var showHistory by rememberSaveable { mutableStateOf(false) }
+    var view by rememberSaveable { mutableStateOf(AppView.TAPE) }
     var showTapePicker by rememberSaveable { mutableStateOf(false) }
+    var showPagePicker by rememberSaveable { mutableStateOf(false) }
     var showDates by rememberSaveable { mutableStateOf(false) }
+    fun closeCards() {
+        showTapePicker = false
+        showPagePicker = false
+        showDates = false
+    }
     val tapeVm = viewModel<TapeViewModel>()
+    val sketchVm = viewModel<SketchViewModel>()
     val tapes by tapeVm.tapes.collectAsState()
     val currentTapeId by tapeVm.currentTapeId.collectAsState()
     val availableDates by tapeVm.availableDates.collectAsState()
+    val pages by sketchVm.pages.collectAsState()
+    val currentPage by sketchVm.currentPage.collectAsState()
     val tapeName = tapeDisplayName(tapes.firstOrNull { it.id == currentTapeId })
     Column(Modifier.fillMaxSize()) {
         Row(
@@ -58,42 +70,74 @@ internal fun Tabs() {
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Text(
-                if (showHistory) "history" else tapeName,
+                when (view) {
+                    AppView.HISTORY -> "history"
+                    AppView.SKETCH -> currentPage?.name ?: "sketch"
+                    AppView.TAPE -> tapeName
+                },
                 fontFamily = Serif,
                 fontStyle = FontStyle.Italic,
                 fontSize = 21.sp,
                 color = InkBlack,
-                modifier = if (showHistory) Modifier
-                else Modifier.hardClickable {
-                    showTapePicker = !showTapePicker
-                    showDates = false
+                modifier = when (view) {
+                    AppView.TAPE -> Modifier.hardClickable {
+                        val open = showTapePicker
+                        closeCards()
+                        showTapePicker = !open
+                    }
+                    AppView.SKETCH -> Modifier.hardClickable {
+                        val open = showPagePicker
+                        closeCards()
+                        showPagePicker = !open
+                    }
+                    AppView.HISTORY -> Modifier
                 },
             )
             Spacer(Modifier.weight(1f))
-            if (!showHistory) {
+            if (view == AppView.SKETCH) {
+                val bg = currentPage?.background
+                BackgroundButton(PageEntity.BLANK, bg) { sketchVm.setBackground(it) }
+                Spacer(Modifier.width(6.dp))
+                BackgroundButton(PageEntity.DOTS, bg) { sketchVm.setBackground(it) }
+                Spacer(Modifier.width(6.dp))
+                BackgroundButton(PageEntity.LINES, bg) { sketchVm.setBackground(it) }
+                Spacer(Modifier.width(14.dp))
+            }
+            if (view == AppView.TAPE) {
                 CalendarButton(
                     selected = showDates,
                     onClick = {
-                        showDates = !showDates
-                        showTapePicker = false
+                        val open = showDates
+                        closeCards()
+                        showDates = !open
                     },
                 )
                 Spacer(Modifier.width(10.dp))
             }
-            ClockButton(
-                selected = showHistory,
+            SketchButton(
+                selected = view == AppView.SKETCH,
                 onClick = {
-                    showHistory = !showHistory
-                    showTapePicker = false
-                    showDates = false
+                    closeCards()
+                    view = if (view == AppView.SKETCH) AppView.TAPE else AppView.SKETCH
+                },
+            )
+            Spacer(Modifier.width(10.dp))
+            ClockButton(
+                selected = view == AppView.HISTORY,
+                onClick = {
+                    closeCards()
+                    view = if (view == AppView.HISTORY) AppView.TAPE else AppView.HISTORY
                 },
             )
         }
         Box(Modifier.fillMaxWidth().height(1.dp).background(InkMargin))
         Box(Modifier.weight(1f)) {
-            if (showHistory) HistoryScreen(viewModel<HistoryViewModel>())
-            else TapeScreen(tapeVm)
-            if (showTapePicker && !showHistory) {
+            when (view) {
+                AppView.HISTORY -> HistoryScreen(viewModel<HistoryViewModel>())
+                AppView.SKETCH -> SketchScreen(sketchVm)
+                AppView.TAPE -> TapeScreen(tapeVm)
+            }
+            if (showTapePicker && view == AppView.TAPE) {
                 TapePickerCard(
                     tapes = tapes,
                     currentTapeId = currentTapeId,
@@ -102,7 +146,16 @@ internal fun Tabs() {
                     modifier = Modifier.align(Alignment.TopCenter).fillMaxWidth().padding(12.dp),
                 )
             }
-            if (!showHistory && showDates) {
+            if (showPagePicker && view == AppView.SKETCH) {
+                PagePickerCard(
+                    pages = pages,
+                    currentPageId = currentPage?.id,
+                    onSwitch = { sketchVm.switchPage(it); showPagePicker = false },
+                    onCreate = { sketchVm.createPage(it); showPagePicker = false },
+                    modifier = Modifier.align(Alignment.TopCenter).fillMaxWidth().padding(12.dp),
+                )
+            }
+            if (view == AppView.TAPE && showDates) {
                 DatePickerCard(
                     dates = availableDates,
                     onPick = { lineId ->
@@ -204,6 +257,96 @@ private fun DatePickerCard(
         }
     }
 }
+
+/** Notebook card listing sketch pages; the bottom row creates a new one. */
+@Composable
+private fun PagePickerCard(
+    pages: List<PageEntity>,
+    currentPageId: Long?,
+    onSwitch: (Long) -> Unit,
+    onCreate: (String) -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    var newName by rememberSaveable { mutableStateOf("") }
+    Column(
+        modifier.notebookCard(),
+        verticalArrangement = Arrangement.spacedBy(6.dp),
+    ) {
+        for (page in pages) {
+            SelectableRow(page.name, selected = page.id == currentPageId) {
+                onSwitch(page.id)
+            }
+        }
+        Row(
+            Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            QuietField(
+                value = newName,
+                onValueChange = { newName = it },
+                placeholder = "new page",
+                modifier = Modifier.weight(1f),
+            )
+            HardButton(
+                "create",
+                onClick = {
+                    if (newName.isNotBlank()) {
+                        onCreate(newName)
+                        newName = ""
+                    }
+                },
+            )
+        }
+    }
+}
+
+/** Background chooser glyphs: blank square, dot grid, line grid. */
+@Composable
+private fun BackgroundButton(bg: String, current: String?, onPick: (String) -> Unit) =
+    GlyphButton(selected = bg == current, onClick = { onPick(bg) }) { c ->
+        val w = size.width
+        val h = size.height
+        when (bg) {
+            PageEntity.DOTS -> {
+                for (i in 0..2) for (j in 0..2) {
+                    drawCircle(c, radius = 1.6f, center = Offset(w * (0.2f + 0.3f * i), h * (0.2f + 0.3f * j)))
+                }
+            }
+            PageEntity.LINES -> {
+                for (i in 0..2) {
+                    val p = 0.2f + 0.3f * i
+                    drawLine(c, Offset(w * 0.1f, h * p), Offset(w * 0.9f, h * p), strokeWidth = 1.5f)
+                    drawLine(c, Offset(w * p, h * 0.1f), Offset(w * p, h * 0.9f), strokeWidth = 1.5f)
+                }
+            }
+            else -> drawRoundRect(
+                color = c,
+                topLeft = Offset(w * 0.15f, h * 0.15f),
+                size = Size(w * 0.7f, h * 0.7f),
+                cornerRadius = CornerRadius(2f, 2f),
+                style = Stroke(width = 1.5f),
+            )
+        }
+    }
+
+/** Pencil-over-page glyph for the sketch view toggle. */
+@Composable
+private fun SketchButton(selected: Boolean, onClick: () -> Unit) =
+    GlyphButton(selected, onClick) { c ->
+        val w = size.width
+        val h = size.height
+        drawRoundRect(
+            color = c,
+            topLeft = Offset(w * 0.08f, h * 0.05f),
+            size = Size(w * 0.7f, h * 0.9f),
+            cornerRadius = CornerRadius(3f, 3f),
+            style = Stroke(width = 2f),
+        )
+        // Pencil diagonal across the page.
+        drawLine(c, Offset(w * 0.3f, h * 0.68f), Offset(w * 0.85f, h * 0.15f), strokeWidth = 2f)
+        drawLine(c, Offset(w * 0.3f, h * 0.68f), Offset(w * 0.26f, h * 0.8f), strokeWidth = 2f)
+    }
 
 /** Small toggle button drawing its glyph in the selection-inverted color. */
 @Composable

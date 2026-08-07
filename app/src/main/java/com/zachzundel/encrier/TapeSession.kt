@@ -2,6 +2,7 @@ package com.zachzundel.encrier
 
 import android.content.Context
 import android.content.SharedPreferences
+import com.zachzundel.encrier.data.PageEntity
 import com.zachzundel.encrier.data.TapeEntity
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -25,7 +26,17 @@ class TapeSession(context: Context) {
         prefs.edit().putLong(KEY, id).apply()
     }
 
+    private val _currentPageId =
+        MutableStateFlow(prefs.getLong(PAGE_KEY, PageEntity.DEFAULT_ID))
+    val currentPageId: StateFlow<Long> = _currentPageId.asStateFlow()
+
+    fun switchPage(id: Long) {
+        _currentPageId.value = id
+        prefs.edit().putLong(PAGE_KEY, id).apply()
+    }
+
     private companion object {
         const val KEY = "currentTapeId"
+        const val PAGE_KEY = "currentPageId"
     }
 }

@@ -33,6 +33,30 @@ data class LineEntity(
     @ColumnInfo(defaultValue = "1") val tapeId: Long = TapeEntity.DEFAULT_ID,
 )
 
+/** A free sketch page: whiteboard ink, no recognition, chosen background. */
+@Entity(tableName = "pages")
+data class PageEntity(
+    @PrimaryKey(autoGenerate = true) val id: Long = 0,
+    val name: String,
+    val background: String, // BLANK | DOTS | LINES
+    val createdAt: Long,
+) {
+    companion object {
+        const val DEFAULT_ID = 1L
+        const val BLANK = "BLANK"
+        const val DOTS = "DOTS"
+        const val LINES = "LINES"
+    }
+}
+
+@Entity(tableName = "page_strokes", indices = [Index("pageId")])
+data class PageStrokeEntity(
+    @PrimaryKey(autoGenerate = true) val id: Long = 0,
+    val pageId: Long,
+    val pointsJson: String, // [[x,y,t],...] in PAGE coordinates
+    val addedAt: Long,
+)
+
 /** A human-corrected recognition: ink + what the model offered + the truth. */
 @Entity(tableName = "corrections")
 data class CorrectionEntity(
@@ -112,6 +136,17 @@ interface TapeDao {
 
     @Insert suspend fun insertCorrection(c: CorrectionEntity): Long
 
+    @Query("SELECT * FROM pages ORDER BY createdAt")
+    fun observePages(): Flow<List<PageEntity>>
+    @Insert suspend fun insertPage(p: PageEntity): Long
+    @Query("UPDATE pages SET background = :bg WHERE id = :id")
+    suspend fun setPageBackground(id: Long, bg: String)
+    @Query("SELECT * FROM page_strokes WHERE pageId = :pageId ORDER BY id")
+    fun observePageStrokes(pageId: Long): Flow<List<PageStrokeEntity>>
+    @Insert suspend fun insertPageStroke(s: PageStrokeEntity): Long
+    @Query("DELETE FROM page_strokes WHERE id = :id")
+    suspend fun deletePageStroke(id: Long)
+
     @Query(
         "SELECT i.* FROM items i JOIN lines l ON l.id = i.lineId " +
             "WHERE l.tapeId = :tapeId"
@@ -147,8 +182,10 @@ interface TapeDao {
         StrokeEntity::class,
         ItemEntity::class,
         CorrectionEntity::class,
+        PageEntity::class,
+        PageStrokeEntity::class,
     ],
-    version = 2,
+    version = 3,
     exportSchema = false,
 )
 abstract class InkDb : RoomDatabase() {
@@ -171,6 +208,25 @@ abstract class InkDb : RoomDatabase() {
                         "candidatesJson TEXT NOT NULL, correctedText TEXT NOT NULL, " +
                         "createdAt INTEGER NOT NULL)"
                 )
+            }
+        }
+
+        val MIGRATION_2_3 = object : Migration(2, 3) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL(
+                    "CREATE TABLE IF NOT EXISTS pages (" +
+                        "id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, " +
+                        "name TEXT NOT NULL, background TEXT NOT NULL, " +
+                        "createdAt INTEGER NOT NULL)"
+                )
+                db.execSQL("INSERT INTO pages (id, name, background, createdAt) VALUES (1, 'sketch', 'DOTS', 0)")
+                db.execSQL(
+                    "CREATE TABLE IF NOT EXISTS page_strokes (" +
+                        "id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, " +
+                        "pageId INTEGER NOT NULL, pointsJson TEXT NOT NULL, " +
+                        "addedAt INTEGER NOT NULL)"
+                )
+                db.execSQL("CREATE INDEX IF NOT EXISTS index_page_strokes_pageId ON page_strokes (pageId)")
             }
         }
     }
