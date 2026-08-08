@@ -36,6 +36,15 @@ android {
     }
 
     buildTypes {
+        // Release-signed but debuggable: installs over Obtainium's release
+        // builds (same signature) while keeping run-as for DB debugging.
+        create("dev") {
+            initWith(getByName("debug"))
+            applicationIdSuffix = null
+            if (keystoreProps.isNotEmpty()) {
+                signingConfig = signingConfigs.getByName("release")
+            }
+        }
         release {
             isMinifyEnabled = true
             isShrinkResources = true
